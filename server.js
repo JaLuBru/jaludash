@@ -361,5 +361,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log("Homelab dashboard running at http://" + host + ":" + port);
+  console.log("jaludash running at http://" + host + ":" + port);
 });

@@ -1,6 +1,6 @@
 # jaludash
 
-A personal homelab dashboard for keeping track of what is running, where it lives, how to reach it, and what needs attention.
+A personal dashboard for keeping track of what is running in your homelab, where it lives, how to reach it, and what needs attention.
 
 The current version focuses on:
 
@@ -16,19 +16,19 @@ The current version focuses on:
 The intended deployment path is:
 
 ```bash
-/home/apps/dashboard
+/home/apps/jaludash
 ```
 
 First clone the repository there:
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_USERNAME/jaludash.git /home/apps/dashboard
+git clone https://github.com/JaLuBru/jaludash.git /home/apps/jaludash
 ```
 
 Then start or update it with:
 
 ```bash
-docker compose -f /home/apps/dashboard/docker-compose.yml up -d --build
+docker compose -f /home/apps/jaludash/docker-compose.yml up -d --build
 ```
 
 The direct dashboard URL is:
@@ -42,9 +42,9 @@ http://192.168.0.191:4173
 After changes are pushed to GitHub:
 
 ```bash
-cd /home/apps/dashboard
+cd /home/apps/jaludash
 git pull
-docker compose -f /home/apps/dashboard/docker-compose.yml up -d --build
+docker compose -f /home/apps/jaludash/docker-compose.yml up -d --build
 ```
 
 ## Host Health

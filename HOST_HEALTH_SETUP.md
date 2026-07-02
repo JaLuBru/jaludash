@@ -1,19 +1,53 @@
 # Host Health Setup
 
-The dashboard can now read host metrics from node_exporter if it is available on each host at port 9100.
+jaludash can show host memory, root disk, and uptime when node_exporter is reachable on each host.
 
-Configured targets:
+Expected metric endpoints:
 
-- optipi: http://192.168.0.192:9100/metrics
-- serverpi: http://192.168.0.195:9100/metrics
+```text
+http://192.168.0.192:9100/metrics
+http://192.168.0.195:9100/metrics
+```
 
-Until node_exporter is installed, the dashboard will still show management reachability but CPU/RAM/disk metrics will be unknown.
+## Install On optipi / Proxmox
 
-## Quick install idea
+Run this on the Proxmox host shell:
 
-For Debian-based hosts, install node_exporter through your preferred package method or as a systemd service. After installation, verify from the Docker LXC:
+```bash
+apt update
+apt install -y prometheus-node-exporter
+systemctl enable --now prometheus-node-exporter
+systemctl status prometheus-node-exporter --no-pager
+curl http://127.0.0.1:9100/metrics | head
+```
 
-    curl http://192.168.0.192:9100/metrics
-    curl http://192.168.0.195:9100/metrics
+## Install On serverpi / Raspberry Pi
 
-If you want, we can make the next bucket a careful node_exporter install runbook for optipi and serverpi.
+Run this on the Raspberry Pi shell:
+
+```bash
+sudo apt update
+sudo apt install -y prometheus-node-exporter
+sudo systemctl enable --now prometheus-node-exporter
+sudo systemctl status prometheus-node-exporter --no-pager
+curl http://127.0.0.1:9100/metrics | head
+```
+
+## Verify From The Docker LXC
+
+Run this inside the Docker LXC where jaludash runs:
+
+```bash
+curl http://192.168.0.192:9100/metrics | head
+curl http://192.168.0.195:9100/metrics | head
+```
+
+If either command fails, check whether the exporter service is running and whether port 9100 is reachable between the machines.
+
+## Restart jaludash
+
+After the exporters answer, refresh jaludash or redeploy it:
+
+```bash
+docker compose -f /home/apps/jaludash/docker-compose.yml up -d --build
+```

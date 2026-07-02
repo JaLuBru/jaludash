@@ -1,23 +1,26 @@
+name: jaludash
+
 services:
-  homelab-dashboard:
+  jaludash:
+    image: jaludash:latest
     build: .
-    container_name: homelab-dashboard
+    container_name: jaludash
     restart: unless-stopped
     ports:
       - "4173:4173"
     networks:
       - proxy
     volumes:
-      - homelab-dashboard-data:/app/data
+      - jaludash-data:/app/data
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.homelab-dashboard.rule=Host(`homelab.local.jalubru.com`)"
-      - "traefik.http.routers.homelab-dashboard.entrypoints=https"
-      - "traefik.http.routers.homelab-dashboard.tls=true"
-      - "traefik.http.services.homelab-dashboard.loadbalancer.server.port=4173"
+      - "traefik.http.routers.jaludash.rule=Host(`jaludash.local.jalubru.com`)"
+      - "traefik.http.routers.jaludash.entrypoints=https"
+      - "traefik.http.routers.jaludash.tls=true"
+      - "traefik.http.services.jaludash.loadbalancer.server.port=4173"
 
 volumes:
-  homelab-dashboard-data:
+  jaludash-data:
 
 networks:
   proxy:

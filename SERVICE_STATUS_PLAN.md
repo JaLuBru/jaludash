@@ -34,7 +34,7 @@ Run these on the Docker LXC before enabling dashboard checks:
 
 If those work from the LXC but not from the dashboard container, test inside the container:
 
-    docker exec -it homelab-dashboard sh
+    docker exec -it jaludash sh
     wget -S --spider http://192.168.0.191:9000
 
 ## Bucket: Basic Service Status

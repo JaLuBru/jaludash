@@ -1,4 +1,4 @@
-# Homelab Dashboard Deployment
+# jaludash Deployment
 
 Target for the first always-on deployment:
 
@@ -6,20 +6,20 @@ Target for the first always-on deployment:
 - Docker LXC: docker
 - Docker LXC IP: 192.168.0.191
 - Direct URL: http://192.168.0.191:4173
-- Optional Traefik host: homelab.local.jalubru.com
+- Optional Traefik host: jaludash.local.jalubru.com
 
 ## First Deploy
 
 Copy this project folder to the Docker LXC, for example under:
 
 ```bash
-/home/apps/dashboard
+/home/apps/jaludash
 ```
 
 Then start it:
 
 ```bash
-docker compose -f /home/apps/dashboard/docker-compose.yml up -d --build
+docker compose -f /home/apps/jaludash/docker-compose.yml up -d --build
 ```
 
 After it starts, open:
@@ -33,7 +33,7 @@ http://192.168.0.191:4173
 The compose file includes Traefik labels for:
 
 ```text
-homelab.local.jalubru.com
+jaludash.local.jalubru.com
 ```
 
 This assumes the external Docker network named `proxy` already exists, matching your HomeBox setup. If the `proxy` network is not available, either create it or temporarily remove the `networks` and `labels` sections and use the direct IP/port URL first.
@@ -43,7 +43,7 @@ This assumes the external Docker network named `proxy` already exists, matching 
 After changing dashboard files:
 
 ```bash
-docker compose -f /home/apps/dashboard/docker-compose.yml up -d --build
+docker compose -f /home/apps/jaludash/docker-compose.yml up -d --build
 ```
 
 ## Current Scope
@@ -59,4 +59,4 @@ Next intended buckets:
 
 ## Roadmap Data
 
-Roadmap items added in the app are stored in the Docker volume `homelab-dashboard-data` at `/app/data`. This keeps them through normal `docker compose -f /home/apps/dashboard/docker-compose.yml up -d --build` rebuilds.
+Roadmap items added in the app are stored in the Docker volume `jaludash-data` at `/app/data`. This keeps them through normal `docker compose -f /home/apps/jaludash/docker-compose.yml up -d --build` rebuilds.

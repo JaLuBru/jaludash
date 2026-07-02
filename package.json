@@ -3,5 +3,7 @@
     "start": "node server.js"
   },
   "dependencies": {},
-  "devDependencies": {}
+  "devDependencies": {},
+  "name": "jaludash",
+  "private": true
 }

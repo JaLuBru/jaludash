@@ -1518,3 +1518,25 @@ button, input { font: inherit; }
 [data-theme="dark"] .service-edit-actions button.danger {
   color: #fca5a5;
 }
+
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+  border: 1px solid transparent;
+}
+
+.status-dot.online { background: #16a34a; }
+.status-dot.offline { background: #dc2626; }
+.status-dot.degraded { background: #f59e0b; }
+.status-dot.unknown { background: #94a3b8; }
+
+.status-chip.dot-only {
+  width: auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}

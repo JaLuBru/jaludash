@@ -201,8 +201,8 @@ function serviceStatus(serviceId) {
 function statusChip(serviceId) {
   const result = serviceStatus(serviceId);
   const label = result.state === "online" ? "Online" : result.state === "offline" ? "Offline" : result.state === "degraded" ? "Degraded" : "Unknown";
-  const detail = result.httpStatus ? 'HTTP ' + result.httpStatus : result.error || '';
-  return '<span class="status-chip ' + result.state + '" title="' + escapeHtml(detail) + '">' + label + '</span>';
+  const detail = [label, result.httpStatus ? 'HTTP ' + result.httpStatus : '', result.error || ''].filter(Boolean).join(' / ');
+  return '<span class="status-chip dot-only" title="' + escapeHtml(detail) + '" aria-label="' + escapeHtml(label) + '"><span class="status-dot ' + escapeHtml(result.state || 'unknown') + '"></span></span>';
 }
 
 function statusMeta(serviceId) {
@@ -275,7 +275,11 @@ function applyDiscoveredService(container, form) {
 }
 
 function editServiceDraft(service) {
-  return Object.assign(emptyServiceDraft(), service || {}, { discovery: service && service.discovery ? service.discovery : null });
+  return Object.assign(emptyServiceDraft(), service || {}, {
+    host: service && (service.host || service.groupHost) ? (service.host || service.groupHost) : "docker-lxc",
+    category: service && service.category ? service.category : "apps",
+    discovery: service && service.discovery ? service.discovery : null
+  });
 }
 
 function openServiceModal(draft) {
@@ -303,8 +307,11 @@ async function saveService(form) {
     const response = await fetch(editingId ? "/api/services/" + encodeURIComponent(editingId) : "/api/services", { method: editingId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not save service.");
-    if (editingId) state.customServices = state.customServices.map((service) => service.id === editingId ? data.service : service);
-    else state.customServices.unshift(data.service);
+    if (editingId) {
+      const index = state.customServices.findIndex((service) => service.id === editingId || service.overrideOf === editingId);
+      if (index === -1) state.customServices.unshift(data.service);
+      else state.customServices = state.customServices.map((service, serviceIndex) => serviceIndex === index ? data.service : service);
+    } else state.customServices.unshift(data.service);
     state.serviceModalOpen = false;
     state.serviceDraft = null;
     state.savingService = false;
@@ -445,27 +452,52 @@ function parentHostId(id) {
   return unit ? unit.host : id;
 }
 
-function services() {
-  const inventoryServices = inventory.serviceGroups.flatMap((group) => group.services.map((service) => Object.assign({}, service, {
+function inventoryServiceIds() {
+  return new Set(inventory.serviceGroups.flatMap((group) => group.services.map((service) => service.id)));
+}
+
+function serviceOverrides() {
+  const ids = inventoryServiceIds();
+  return new Map(state.customServices.filter((service) => service.overrideOf || ids.has(service.id)).map((service) => [service.overrideOf || service.id, service]));
+}
+
+function dashboardAddedServices() {
+  const ids = inventoryServiceIds();
+  return state.customServices.filter((service) => !service.overrideOf && !ids.has(service.id));
+}
+
+function matchingServiceGroup(service) {
+  const serviceHost = service.host || "docker-lxc";
+  const serviceParent = parentHostId(serviceHost);
+  return inventory.serviceGroups.find((group) => group.category === service.category && (group.host === serviceHost || parentHostId(group.host) === serviceParent)) ||
+    inventory.serviceGroups.find((group) => group.category === service.category) ||
+    inventory.serviceGroups.find((group) => group.host === serviceHost || parentHostId(group.host) === serviceParent) ||
+    null;
+}
+
+function decorateService(service, group, flags) {
+  return Object.assign({}, service, flags || {}, {
     group: group.name,
     groupId: group.id,
     groupHost: group.host,
     parentHost: parentHostId(group.host),
-    category: group.category,
+    category: service.category || group.category,
     groupPurpose: group.purpose,
     groupNotes: group.notes || []
-  })));
-  const custom = state.customServices.map((service) => Object.assign({}, service, {
-    group: "Dashboard Added",
-    groupId: "dashboard-added",
-    groupHost: service.host || "docker-lxc",
-    parentHost: parentHostId(service.host || "docker-lxc"),
-    category: service.category || "apps",
-    groupPurpose: "Services added from jaludash.",
-    groupNotes: [],
-    dashboardAdded: true
+  });
+}
+
+function services() {
+  const overrides = serviceOverrides();
+  const inventoryServices = inventory.serviceGroups.flatMap((group) => group.services.map((service) => {
+    const override = overrides.get(service.id);
+    return decorateService(Object.assign({}, service, override || {}, { id: service.id }), group, { dashboardOverride: Boolean(override) });
   }));
-  return inventoryServices.concat(custom);
+  const added = dashboardAddedServices().map((service) => {
+    const group = matchingServiceGroup(service) || { id: "dashboard-added", name: "Dashboard Added", host: service.host || "docker-lxc", category: service.category || "apps", purpose: "Services added from jaludash.", notes: [] };
+    return decorateService(service, group, { dashboardAdded: true });
+  });
+  return inventoryServices.concat(added);
 }
 
 function findService(serviceId) {
@@ -526,28 +558,24 @@ function matchesFocus(service) {
 
 function visibleGroups() {
   const query = state.query.trim().toLowerCase();
-  const baseGroups = inventory.serviceGroups.map((group) => {
+  const allServices = services();
+  const groups = inventory.serviceGroups.map((group) => {
     const groupParentHost = parentHostId(group.host);
     const groupText = [group.name, group.category, group.purpose, hostName(group.host), hostName(groupParentHost)].join(' ').toLowerCase();
     const groupMatchesQuery = !query || groupText.includes(query);
     const groupMatchesHost = state.host === 'all' || groupParentHost === state.host || group.host === state.host;
     const groupMatchesCategory = state.category === 'all' || group.category === state.category;
     if (!groupMatchesHost || !groupMatchesCategory) return null;
-    const matchedServices = group.services.filter((rawService) => {
-      const service = Object.assign({}, rawService, { groupPurpose: group.purpose });
-      const serviceText = [service.name, service.importance, service.status, service.url || '', group.name, group.category, hostName(group.host)].join(' ').toLowerCase();
+    const matchedServices = allServices.filter((service) => service.groupId === group.id).filter((service) => {
+      const serviceText = [service.name, service.importance, service.status, service.url || '', group.name, group.category, hostName(service.host || group.host)].join(' ').toLowerCase();
       return (groupMatchesQuery || serviceText.includes(query)) && matchesFocus(service);
     });
     if (matchedServices.length) return Object.assign({}, group, { services: matchedServices });
     return null;
   }).filter(Boolean);
-  const customServices = state.customServices.filter((service) => {
-    const serviceText = [service.name, service.importance, service.status, service.url || '', service.category, hostName(service.host || 'docker-lxc')].join(' ').toLowerCase();
-    const parent = parentHostId(service.host || 'docker-lxc');
-    return (!query || serviceText.includes(query)) && (state.host === 'all' || parent === state.host || service.host === state.host) && (state.category === 'all' || service.category === state.category) && matchesFocus(service);
-  });
-  if (customServices.length) baseGroups.unshift({ id: 'dashboard-added', name: 'Dashboard Added', host: 'docker-lxc', category: 'apps', importance: 'low', purpose: 'Services added from jaludash.', services: customServices });
-  return baseGroups;
+  const fallbackServices = allServices.filter((service) => service.groupId === "dashboard-added" && matchesFocus(service));
+  if (fallbackServices.length) groups.push({ id: "dashboard-added", name: "Dashboard Added", host: "docker-lxc", category: "apps", importance: "low", purpose: "Services added from jaludash.", services: fallbackServices });
+  return groups;
 }
 
 function directoryStats() {
@@ -572,7 +600,7 @@ function serviceDirectory() {
   document.querySelectorAll('[data-focus]').forEach((button) => button.addEventListener('click', () => { state.focus = button.dataset.focus; serviceDirectory(); }));
   document.querySelectorAll('[data-service-id]').forEach((button) => button.addEventListener('click', () => { state.selectedServiceId = button.dataset.serviceId; state.view = 'service-detail'; render(); }));
   document.querySelectorAll('[data-edit-service]').forEach((button) => button.addEventListener('click', () => {
-    const service = state.customServices.find((item) => item.id === button.dataset.editService);
+    const service = services().find((item) => item.id === button.dataset.editService);
     if (service) openServiceModal(editServiceDraft(service));
   }));
   document.querySelectorAll('[data-delete-service]').forEach((button) => button.addEventListener('click', () => deleteService(button.dataset.deleteService)));
@@ -583,19 +611,19 @@ function serviceDirectory() {
 function groupCard(group) {
   const serviceRows = group.services.sort((a, b) => rank[b.importance] - rank[a.importance] || a.name.localeCompare(b.name)).map((service) => serviceRow(service, group)).join('');
   const note = group.notes ? '<p class="note">' + escapeHtml(group.notes.join(' ')) + '</p>' : '';
-  return '<article class="group-card enhanced-group"><div class="card-head"><div><h3>' + escapeHtml(group.name) + '</h3><p>' + escapeHtml(group.purpose) + '</p></div><div class="badge-row">' + badge(group.category) + badge(group.importance, group.importance) + '</div></div><div class="group-meta"><span>Runs on ' + escapeHtml(hostName(group.host)) + '</span><span>Physical host: ' + escapeHtml(hostName(parentHostId(group.host))) + '</span><span>' + group.services.length + ' shown</span></div><div class="service-table enhanced-table">' + serviceRows + '</div>' + note + '</article>';
+  return '<article class="group-card enhanced-group"><div class="card-head"><div><h3>' + escapeHtml(group.name) + '</h3><p>' + escapeHtml(group.purpose) + '</p></div><div class="badge-row">' + badge(group.category) + '</div></div><div class="group-meta"><span>Runs on ' + escapeHtml(hostName(group.host)) + '</span><span>Physical host: ' + escapeHtml(hostName(parentHostId(group.host))) + '</span><span>' + group.services.length + ' shown</span></div><div class="service-table enhanced-table">' + serviceRows + '</div>' + note + '</article>';
 }
 
 function serviceRow(service, group) {
   const issues = serviceIssues(Object.assign({}, service, { groupPurpose: group.purpose }));
   const issueHtml = issues.length ? '<div class="issue-row">' + issues.map((issue) => '<span>' + escapeHtml(issue) + '</span>').join('') + '</div>' : '';
-  const details = [service.status, group.category, hostName(group.host)].filter(Boolean).join(' / ');
   const url = service.url ? '<code>' + escapeHtml(service.url.replace(/^https?:\/\//, '')) + '</code>' : '<code>add preferred URL later</code>';
   const docsBadge = serviceDocs[service.id] ? '<span class="docs-badge">Docs</span>' : '<span class="docs-badge missing">No docs</span>';
   const contextualBadges = [state.focus === 'needs-docs' ? docsBadge : '', state.focus === 'important' ? badge(service.importance, service.importance) : '', state.focus === 'needs-docs' ? issueHtml : ''].join('');
-  const editable = service.source === 'dashboard' || group.id === 'dashboard-added';
-  const serviceActions = editable ? '<div class="service-edit-actions"><button type="button" data-edit-service="' + escapeHtml(service.id) + '">Edit</button><button type="button" class="danger" data-delete-service="' + escapeHtml(service.id) + '">' + (state.deletingServiceId === service.id ? 'Deleting...' : 'Delete') + '</button></div>' : '';
-  return '<div class="service-row service-row-expanded"><div class="service-name"><div class="service-title-line"><button class="service-title-button" type="button" data-service-id="' + escapeHtml(service.id) + '">' + escapeHtml(service.name) + '</button>' + statusChip(service.id) + '</div><span>' + escapeHtml(details) + '</span></div><div class="service-url">' + url + '</div><div class="service-context-badges">' + contextualBadges + '</div><div class="service-row-actions">' + openLink(service) + serviceActions + '</div></div>';
+  const editable = true;
+  const statusLabel = service.status && service.status !== 'documented' ? '<span>' + escapeHtml(service.status) + '</span>' : '';
+  const serviceActions = editable ? '<div class="service-edit-actions"><button type="button" data-edit-service="' + escapeHtml(service.id) + '">Edit</button>' + (service.dashboardAdded ? '<button type="button" class="danger" data-delete-service="' + escapeHtml(service.id) + '">' + (state.deletingServiceId === service.id ? 'Deleting...' : 'Delete') + '</button>' : '') + '</div>' : '';
+  return '<div class="service-row service-row-expanded"><div class="service-name"><div class="service-title-line"><button class="service-title-button" type="button" data-service-id="' + escapeHtml(service.id) + '">' + escapeHtml(service.name) + '</button>' + statusChip(service.id) + '</div><span>' + [group.category, hostName(group.host)].filter(Boolean).map(escapeHtml).join(' / ') + '</span></div><div class="service-url">' + url + '</div><div class="service-context-badges">' + statusLabel + contextualBadges + '</div><div class="service-row-actions">' + openLink(service) + serviceActions + '</div></div>';
 }
 
 function cleanObsidianText(value) {
@@ -666,7 +694,7 @@ function serviceDetail() {
   const links = doc && doc.links.length ? doc.links.map((link) => '<a href="' + escapeHtml(link.url) + '" target="_blank" rel="noreferrer">' + escapeHtml(link.label) + '</a>').join('') : '<span class="muted">No links found in the Obsidian note.</span>';
   const runbookCommands = renderRunbookCommands(doc);
   const docsPanel = doc ? '<div class="wiki-content"><section class="wiki-main runbook-main"><div class="section-title"><p class="eyebrow">Service Notes</p><h2>Runbook</h2></div>' + runbookCommands + '</section><section class="wiki-main"><div class="section-title"><p class="eyebrow">Obsidian Note</p><h2>' + escapeHtml(doc.title) + '</h2></div><p class="source-file">' + escapeHtml(doc.sourceFile) + '</p><div class="wiki-markdown">' + renderMarkdown(doc.markdown) + '</div></section></div>' : (!serviceDocsLoaded ? '<section class="wiki-main empty-doc"><h2>Loading documentation</h2><p>The dashboard is loading service notes in the background.</p></section>' : '<section class="wiki-main empty-doc"><h2>No Obsidian note matched yet</h2><p>This service still has inventory data, but no app note was matched during import.</p></section>');
-  shell('<main class="page wiki-page"><button class="back-button" type="button" data-back-services="true">Back to services</button><section class="wiki-hero"><div><p class="eyebrow">Service Detail</p><h2>' + escapeHtml(service.name) + '</h2><p>' + escapeHtml(service.groupPurpose || service.purpose || 'No purpose documented yet.') + '</p></div><div class="wiki-actions">' + openLink(service) + statusChip(service.id) + badge(service.importance, service.importance) + badge(service.status || 'documented') + '</div></section><section class="wiki-layout"><aside class="wiki-side"><div class="wiki-box"><h3>Inventory</h3><div class="fact-list"><div><span>Stack</span><strong>' + escapeHtml(service.group) + '</strong></div><div><span>Runs on</span><strong>' + escapeHtml(hostName(service.groupHost)) + '</strong></div><div><span>Physical host</span><strong>' + escapeHtml(hostName(service.parentHost)) + '</strong></div><div><span>Category</span><strong>' + escapeHtml(service.category) + '</strong></div><div><span>URL</span><strong>' + escapeHtml(service.url || 'No URL yet') + '</strong></div><div><span>Status detail</span><strong>' + escapeHtml(statusMeta(service.id)) + '</strong></div></div></div><div class="wiki-box"><h3>Documentation status</h3><div class="issue-row wiki-issues">' + (issues.length ? issues.map((issue) => '<span>' + escapeHtml(issue) + '</span>').join('') : '<span>Looks documented</span>') + '</div></div><div class="wiki-box"><h3>Obsidian metadata</h3><div class="fact-list">' + (doc ? frontmatterRows(doc.frontmatter) : '<div><span>source</span><strong>Not matched</strong></div>') + '</div></div><div class="wiki-box link-list"><h3>Links</h3>' + links + '</div></aside>' + docsPanel + '</section></main>');
+  shell('<main class="page wiki-page"><button class="back-button" type="button" data-back-services="true">Back to services</button><section class="wiki-hero"><div><p class="eyebrow">Service Detail</p><h2>' + escapeHtml(service.name) + '</h2><p>' + escapeHtml(service.groupPurpose || service.purpose || 'No purpose documented yet.') + '</p></div><div class="wiki-actions">' + openLink(service) + statusChip(service.id) + badge(service.importance, service.importance) + (service.status && service.status !== 'documented' ? badge(service.status) : '') + '</div></section><section class="wiki-layout"><aside class="wiki-side"><div class="wiki-box"><h3>Inventory</h3><div class="fact-list"><div><span>Stack</span><strong>' + escapeHtml(service.group) + '</strong></div><div><span>Runs on</span><strong>' + escapeHtml(hostName(service.groupHost)) + '</strong></div><div><span>Physical host</span><strong>' + escapeHtml(hostName(service.parentHost)) + '</strong></div><div><span>Category</span><strong>' + escapeHtml(service.category) + '</strong></div><div><span>URL</span><strong>' + escapeHtml(service.url || 'No URL yet') + '</strong></div><div><span>Status detail</span><strong>' + escapeHtml(statusMeta(service.id)) + '</strong></div></div></div><div class="wiki-box"><h3>Documentation status</h3><div class="issue-row wiki-issues">' + (issues.length ? issues.map((issue) => '<span>' + escapeHtml(issue) + '</span>').join('') : '<span>Looks documented</span>') + '</div></div><div class="wiki-box"><h3>Obsidian metadata</h3><div class="fact-list">' + (doc ? frontmatterRows(doc.frontmatter) : '<div><span>source</span><strong>Not matched</strong></div>') + '</div></div><div class="wiki-box link-list"><h3>Links</h3>' + links + '</div></aside>' + docsPanel + '</section></main>');
   const back = document.querySelector('[data-back-services]');
   if (back) back.addEventListener('click', () => { state.view = 'services'; render(); });
   document.querySelectorAll('[data-copy-code]').forEach((button) => button.addEventListener('click', (event) => {

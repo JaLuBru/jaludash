@@ -152,8 +152,12 @@ function readInventoryHosts() {
 }
 
 function serviceChecks() {
+  const customServices = readCustomServices();
+  const overrides = new Map(customServices.filter((service) => service.overrideOf).map((service) => [service.overrideOf, service]));
+  const inventoryChecks = readInventoryServices().map((service) => Object.assign({}, service, overrides.get(service.id) || {}, { id: service.id }));
+  const customChecks = customServices.filter((service) => !service.overrideOf).map((service) => ({ ...service, disabled: !service.url }));
   const seen = new Set();
-  return readInventoryServices().concat(readCustomServices().map((service) => ({ ...service, disabled: !service.url }))).filter((service) => {
+  return inventoryChecks.concat(customChecks).filter((service) => {
     if (service.disabled) return false;
     if (seen.has(service.id)) return false;
     seen.add(service.id);
@@ -501,17 +505,15 @@ function handleApi(req, res, urlPath) {
         return;
       }
       const items = readCustomServices();
-      const index = items.findIndex((item) => item.id === serviceId);
-      if (index === -1) {
-        sendJson(res, 404, { error: "Service not found." });
-        return;
-      }
-      const result = serviceFromInput(input, items[index]);
+      const index = items.findIndex((item) => item.id === serviceId || item.overrideOf === serviceId);
+      const existing = index === -1 ? { id: serviceId, overrideOf: serviceId, source: "dashboard", createdAt: new Date().toISOString() } : items[index];
+      const result = serviceFromInput(input, existing);
       if (result.error) {
         sendJson(res, 400, { error: result.error });
         return;
       }
-      items[index] = result.item;
+      if (index === -1) items.unshift(result.item);
+      else items[index] = result.item;
       saveCustomServices(items);
       sendJson(res, 200, { service: result.item });
     });
@@ -521,7 +523,7 @@ function handleApi(req, res, urlPath) {
   if (urlPath.startsWith("/api/services/") && req.method === "DELETE") {
     const serviceId = decodeURIComponent(urlPath.slice("/api/services/".length));
     const items = readCustomServices();
-    const nextItems = items.filter((item) => item.id !== serviceId);
+    const nextItems = items.filter((item) => item.id !== serviceId && item.overrideOf !== serviceId);
     if (nextItems.length === items.length) {
       sendJson(res, 404, { error: "Service not found." });
       return true;

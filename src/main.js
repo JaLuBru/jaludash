@@ -29,6 +29,9 @@ const state = {
   discovery: { dockerAvailable: false, containers: [], unknown: [], checkedAt: "" },
   discoveryLoading: false,
   discoveryError: "",
+  proxmox: { configured: false, guests: [], checkedAt: "" },
+  proxmoxLoading: false,
+  proxmoxError: "",
   customServices: [],
   customGroups: [],
   groupModalOpen: false,
@@ -157,8 +160,25 @@ async function loadDiscovery() {
   }
 }
 
+async function loadProxmox() {
+  state.proxmoxLoading = true;
+  state.proxmoxError = "";
+  try {
+    const response = await fetch("/api/proxmox");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Proxmox failed.");
+    state.proxmox = data;
+    state.proxmoxError = data.error || "";
+  } catch (error) {
+    state.proxmoxError = error.message;
+    state.proxmox = { configured: false, guests: [], checkedAt: "" };
+  } finally {
+    state.proxmoxLoading = false;
+  }
+}
+
 function refreshLiveDataAndRender() {
-  Promise.all([loadStatus(), loadHostHealth(), loadDiscovery()]).finally(render);
+  Promise.all([loadStatus(), loadHostHealth(), loadDiscovery(), loadProxmox()]).finally(render);
 }
 
 function formatUptime(seconds) {
@@ -739,7 +759,7 @@ function groupCard(group) {
   const shownServices = group.services || [];
   const serviceRows = shownServices.sort((a, b) => rank[b.importance] - rank[a.importance] || a.name.localeCompare(b.name)).map((service) => serviceRow(service, group)).join('');
   const note = group.notes ? '<p class="note">' + escapeHtml(group.notes.join(' ')) + '</p>' : '';
-  return '<article class="group-card enhanced-group"><div class="card-head"><div><h3>' + escapeHtml(group.name) + '</h3><p>' + escapeHtml(group.purpose) + '</p></div><div class="badge-row">' + badge(group.category) + '<button class="mini-edit" type="button" data-edit-group="' + escapeHtml(group.id) + '">Edit</button></div></div><div class="group-meta"><span>Runs on ' + escapeHtml(hostName(group.host)) + '</span><span>Physical host: ' + escapeHtml(hostName(parentHostId(group.host))) + '</span><span>' + group.services.length + ' shown</span></div><div class="service-table enhanced-table">' + serviceRows + '</div>' + note + '</article>';
+  return '<article class="group-card enhanced-group"><div class="card-head"><div><h3>' + escapeHtml(group.name) + '</h3><p>' + escapeHtml(group.purpose) + '</p></div><div class="badge-row">' + badge(group.category) + '<button class="mini-edit" type="button" data-edit-group="' + escapeHtml(group.id) + '">Edit</button></div></div><div class="group-meta"><span>Runs on ' + escapeHtml(hostName(group.host)) + '</span><span>Physical host: ' + escapeHtml(hostName(parentHostId(group.host))) + '</span><span>' + shownServices.length + ' shown</span></div><div class="service-table enhanced-table">' + (serviceRows || '<div class="empty inline-empty">No services in this card yet.</div>') + '</div>' + note + '</article>';
 }
 
 function serviceRow(service, group) {
@@ -849,7 +869,9 @@ function storageSummary(items) {
 function storageCard(item) {
   const label = item.hostShortName + ' ' + item.mount;
   const flags = [item.fstype, item.readonly ? 'read only' : '', item.deviceError ? 'device error' : ''].filter(Boolean).join(' / ');
-  return '<article class="storage-card ' + escapeHtml(item.severity) + '"><div class="card-head"><div><h3>' + escapeHtml(label) + '</h3><p>' + escapeHtml(item.device || 'unknown device') + '</p></div>' + badge(item.severity, item.severity) + '</div><div class="health-meter"><div><span>Used</span><strong>' + escapeHtml(item.usedPercent) + '%</strong></div><div class="meter-track"><span style="width:' + Math.min(100, item.usedPercent || 0) + '%"></span></div><small>' + escapeHtml(item.usedGiB) + ' / ' + escapeHtml(item.totalGiB) + ' GiB used, ' + escapeHtml(item.availableGiB) + ' GiB free</small></div><p class="storage-meta">' + escapeHtml(flags || 'filesystem') + '</p></article>';
+  const usage = item.usedPercent === null || item.usedPercent === undefined ? 'Unknown' : escapeHtml(item.usedPercent) + '%';
+  const detail = item.usedGiB === null || item.usedGiB === undefined ? 'Mounted disk, usage unavailable' : escapeHtml(item.usedGiB) + ' / ' + escapeHtml(item.totalGiB) + ' GiB used, ' + escapeHtml(item.availableGiB) + ' GiB free';
+  return '<article class="storage-card ' + escapeHtml(item.severity) + '"><div class="card-head"><div><h3>' + escapeHtml(label) + '</h3><p>' + escapeHtml(item.device || 'unknown device') + '</p></div>' + badge(item.severity, item.severity) + '</div><div class="health-meter"><div><span>Used</span><strong>' + usage + '</strong></div><div class="meter-track"><span style="width:' + Math.min(100, item.usedPercent || 0) + '%"></span></div><small>' + detail + '</small></div><p class="storage-meta">' + escapeHtml(flags || 'filesystem') + (item.expected ? ' / expected mount' : '') + '</p></article>';
 }
 
 function diskCard(host, disk) {
@@ -867,11 +889,17 @@ function storageOverview() {
 function discoveryOverview() {
   const containers = state.discovery.containers || [];
   const unknown = state.discovery.unknown || [];
+  const proxmoxGuests = state.proxmox.guests || [];
   const cards = containers.map((container) => {
     const ports = (container.ports || []).map((port) => [port.publicPort, port.privatePort].filter(Boolean).join('->') + '/' + (port.type || 'tcp')).join(', ');
     return '<article class="discovery-card ' + (container.known ? 'known' : 'unknown') + '"><div class="card-head"><div><h3>' + escapeHtml(container.name || container.id) + '</h3><p>' + escapeHtml(container.image) + '</p></div><span class="status-chip ' + (container.state === 'running' ? 'online' : 'unknown') + '">' + escapeHtml(container.state || 'unknown') + '</span></div><div class="group-meta"><span>' + (container.known ? 'In inventory' : 'New to inventory') + '</span>' + (ports ? '<span>' + escapeHtml(ports) + '</span>' : '') + '</div><p class="storage-meta">' + escapeHtml(container.status || '') + '</p>' + (!container.known ? '<button class="primary-action inline-action" type="button" data-add-discovered="' + escapeHtml(container.id) + '">Add</button>' : '') + '</article>'; 
   }).join('') || '<div class="empty">No Docker containers found yet.</div>';
-  shell('<main class="page discovery-page"><section class="stats"><article><span>Docker</span><strong>' + (state.discovery.dockerAvailable ? 'OK' : 'Off') + '</strong></article><article><span>Containers</span><strong>' + containers.length + '</strong></article><article><span>New</span><strong>' + unknown.length + '</strong></article><article><span>Running</span><strong>' + containers.filter((item) => item.state === 'running').length + '</strong></article></section><section><div class="section-title"><p class="eyebrow">Auto Discovery</p><h2>Docker containers compared with inventory</h2><p class="status-timestamp">' + (state.discovery.checkedAt ? 'Last checked ' + new Date(state.discovery.checkedAt).toLocaleTimeString() : 'Discovery not checked yet') + (state.discoveryError ? ' / ' + escapeHtml(state.discoveryError) : '') + '</p></div><div class="discovery-results">' + cards + '</div></section></main>');
+  const proxmoxCards = proxmoxGuests.map((guest) => {
+    const ips = (guest.ips || []).length ? guest.ips.join(', ') : 'No IP in config';
+    const stateClass = guest.status === 'running' ? 'online' : guest.status === 'stopped' ? 'offline' : 'unknown';
+    return '<article class="discovery-card"><div class="card-head"><div><h3>' + escapeHtml(guest.name) + '</h3><p>' + escapeHtml(guest.type.toUpperCase() + ' ' + guest.vmid + ' on ' + guest.node) + '</p></div><span class="status-chip ' + stateClass + '">' + escapeHtml(guest.status || 'unknown') + '</span></div><div class="group-meta"><span>' + escapeHtml(ips) + '</span><span>' + escapeHtml(formatUptime(guest.uptime || 0)) + '</span></div></article>';
+  }).join('') || '<div class="empty">' + escapeHtml(state.proxmoxError || 'No Proxmox guests found yet.') + '</div>';
+  shell('<main class="page discovery-page"><section class="stats"><article><span>Docker</span><strong>' + (state.discovery.dockerAvailable ? 'OK' : 'Off') + '</strong></article><article><span>Containers</span><strong>' + containers.length + '</strong></article><article><span>New</span><strong>' + unknown.length + '</strong></article><article><span>Proxmox</span><strong>' + (state.proxmox.configured ? proxmoxGuests.length : 'Off') + '</strong></article></section><section><div class="section-title"><p class="eyebrow">Proxmox</p><h2>LXC and VM state</h2><p class="status-timestamp">' + (state.proxmox.checkedAt ? 'Last checked ' + new Date(state.proxmox.checkedAt).toLocaleTimeString() : 'Proxmox not checked yet') + (state.proxmoxError ? ' / ' + escapeHtml(state.proxmoxError) : '') + '</p></div><div class="discovery-results">' + proxmoxCards + '</div></section><section><div class="section-title"><p class="eyebrow">Auto Discovery</p><h2>Docker containers compared with inventory</h2><p class="status-timestamp">' + (state.discovery.checkedAt ? 'Last checked ' + new Date(state.discovery.checkedAt).toLocaleTimeString() : 'Discovery not checked yet') + (state.discoveryError ? ' / ' + escapeHtml(state.discoveryError) : '') + '</p></div><div class="discovery-results">' + cards + '</div></section></main>');
   document.querySelectorAll('[data-add-discovered]').forEach((button) => button.addEventListener('click', () => { const container = containers.find((item) => item.id === button.dataset.addDiscovered); openServiceModal(discoveryToDraft(container || {})); }));
 }
 

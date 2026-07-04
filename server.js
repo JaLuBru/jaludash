@@ -488,6 +488,88 @@ function dockerSocketRequest(pathname) {
   });
 }
 
+function proxmoxConfig() {
+  return {
+    apiUrl: String(process.env.PROXMOX_API_URL || "").replace(/\/+$/, ""),
+    node: String(process.env.PROXMOX_NODE || "optipi"),
+    tokenId: String(process.env.PROXMOX_API_TOKEN_ID || ""),
+    tokenSecret: String(process.env.PROXMOX_API_TOKEN_SECRET || "")
+  };
+}
+
+function proxmoxRequest(pathname) {
+  const config = proxmoxConfig();
+  if (!config.apiUrl || !config.tokenId || !config.tokenSecret) {
+    return Promise.reject(new Error("Proxmox API token is not configured"));
+  }
+
+  return new Promise((resolve, reject) => {
+    const target = new URL(config.apiUrl + pathname);
+    const client = target.protocol === "https:" ? httpsClient : httpClient;
+    const req = client.request(target, {
+      method: "GET",
+      timeout: Number(process.env.STATUS_TIMEOUT_MS || 4000),
+      rejectUnauthorized: false,
+      headers: { Authorization: "PVEAPIToken=" + config.tokenId + "=" + config.tokenSecret }
+    }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => { body += chunk; if (body.length > 2_000_000) req.destroy(new Error("response too large")); });
+      response.on("end", () => {
+        if (response.statusCode >= 400) reject(new Error("Proxmox returned HTTP " + response.statusCode));
+        else resolve(JSON.parse(body || "{}"));
+      });
+    });
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+function parseProxmoxIps(config) {
+  return Object.entries(config || {}).flatMap(([key, value]) => {
+    if (!/^net\d+|^ipconfig\d+/.test(key)) return [];
+    return Array.from(String(value || "").matchAll(/\bip6?=([^,\s]+)/g)).map((match) => match[1]).filter((ip) => ip && !["dhcp", "manual"].includes(ip));
+  });
+}
+
+async function enrichProxmoxGuest(node, type, guest) {
+  let config = {};
+  try {
+    const payload = await proxmoxRequest("/api2/json/nodes/" + encodeURIComponent(node) + "/" + type + "/" + encodeURIComponent(guest.vmid) + "/config");
+    config = payload.data || {};
+  } catch (error) {
+    config = {};
+  }
+  return {
+    id: type + "-" + guest.vmid,
+    vmid: guest.vmid,
+    type,
+    node,
+    name: guest.name || guest.hostname || String(guest.vmid),
+    status: guest.status || "unknown",
+    uptime: guest.uptime || 0,
+    maxmem: guest.maxmem || 0,
+    maxdisk: guest.maxdisk || 0,
+    ips: parseProxmoxIps(config)
+  };
+}
+
+async function proxmoxPayload() {
+  const config = proxmoxConfig();
+  if (!config.apiUrl || !config.tokenId || !config.tokenSecret) {
+    return { configured: false, checkedAt: new Date().toISOString(), guests: [], error: "Set PROXMOX_API_URL, PROXMOX_NODE, PROXMOX_API_TOKEN_ID, and PROXMOX_API_TOKEN_SECRET." };
+  }
+  const [lxcPayload, qemuPayload] = await Promise.all([
+    proxmoxRequest("/api2/json/nodes/" + encodeURIComponent(config.node) + "/lxc"),
+    proxmoxRequest("/api2/json/nodes/" + encodeURIComponent(config.node) + "/qemu")
+  ]);
+  const lxc = (lxcPayload.data || []).map((guest) => enrichProxmoxGuest(config.node, "lxc", guest));
+  const qemu = (qemuPayload.data || []).map((guest) => enrichProxmoxGuest(config.node, "qemu", guest));
+  const guests = (await Promise.all(lxc.concat(qemu))).sort((a, b) => Number(a.vmid) - Number(b.vmid));
+  return { configured: true, checkedAt: new Date().toISOString(), node: config.node, guests };
+}
+
 async function discoveryPayload() {
   const knownNames = readInventoryServiceNames();
   try {
@@ -643,6 +725,11 @@ function handleApi(req, res, urlPath) {
 
   if (urlPath === "/api/discovery" && req.method === "GET") {
     discoveryPayload().then((payload) => sendJson(res, 200, payload)).catch((error) => sendJson(res, 500, { error: error.message }));
+    return true;
+  }
+
+  if (urlPath === "/api/proxmox" && req.method === "GET") {
+    proxmoxPayload().then((payload) => sendJson(res, 200, payload)).catch((error) => sendJson(res, 500, { configured: false, checkedAt: new Date().toISOString(), guests: [], error: error.message }));
     return true;
   }
 

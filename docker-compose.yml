@@ -8,6 +8,11 @@ services:
     restart: unless-stopped
     ports:
       - "4173:4173"
+    environment:
+      - PROXMOX_API_URL=${PROXMOX_API_URL:-}
+      - PROXMOX_NODE=${PROXMOX_NODE:-optipi}
+      - PROXMOX_API_TOKEN_ID=${PROXMOX_API_TOKEN_ID:-}
+      - PROXMOX_API_TOKEN_SECRET=${PROXMOX_API_TOKEN_SECRET:-}
     networks:
       - proxy
     volumes:

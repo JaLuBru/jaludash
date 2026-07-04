@@ -1352,3 +1352,128 @@ button, input { font: inherit; }
     grid-template-columns: 1fr;
   }
 }
+
+
+.inline-action {
+  margin-top: 12px;
+  width: fit-content;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.52);
+  backdrop-filter: blur(6px);
+}
+
+.service-modal {
+  width: min(720px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.service-modal label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.service-modal input,
+.service-modal select,
+.service-modal textarea {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--input-bg, var(--surface));
+  color: var(--text);
+  font: inherit;
+}
+
+.service-modal textarea {
+  resize: vertical;
+}
+
+.modal-actions,
+.ai-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ai-note {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--soft-surface, rgba(15, 118, 110, 0.08));
+}
+
+.ai-note div {
+  display: grid;
+  gap: 4px;
+}
+
+.ai-note span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.ai-note button,
+.icon-close,
+.modal-actions button:not(.primary-action) {
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--surface-strong, var(--surface));
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ai-note button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.form-error {
+  margin: 0;
+  color: var(--danger, #b91c1c);
+  font-weight: 700;
+}
+
+[data-theme="dark"] .modal-backdrop {
+  background: rgba(2, 6, 23, 0.72);
+}
+
+[data-theme="dark"] .service-modal input,
+[data-theme="dark"] .service-modal select,
+[data-theme="dark"] .service-modal textarea {
+  background: #111827;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .ai-note,
+[data-theme="dark"] .ai-note button,
+[data-theme="dark"] .icon-close,
+[data-theme="dark"] .modal-actions button:not(.primary-action) {
+  background: #111827;
+  color: #f8fafc;
+  border-color: #334155;
+}

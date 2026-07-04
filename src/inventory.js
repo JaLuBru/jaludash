@@ -38,7 +38,7 @@ export const inventory = {
     }
   ],
   computeUnits: [
-    { id: "plex-lxc", name: "plex", type: "Proxmox LXC", host: "optipi", proxmoxId: 100, ip: "192.168.0.123", importance: "medium", purpose: "Plex Media Server", services: ["plex"] },
+    { id: "plex-lxc", name: "plex", type: "Proxmox LXC", host: "optipi", proxmoxId: 100, ip: "192.168.0.16", importance: "medium", purpose: "Plex Media Server", services: ["plex"] },
     { id: "docker-lxc", name: "docker", type: "Proxmox LXC", host: "optipi", proxmoxId: 101, ip: "192.168.0.191", tailscaleIp: "100.95.244.85", importance: "high", purpose: "Docker service host", services: ["optipi-app-stack", "optipi-network-stack", "optipi-management-stack"] },
     { id: "pihole-lxc", name: "pihole", type: "Proxmox LXC", host: "optipi", proxmoxId: 102, ip: "192.168.0.190", importance: "high", purpose: "DNS and ad blocking", services: ["pihole"] },
     { id: "win11-vm", name: "Win11", type: "Proxmox VM", host: "optipi", proxmoxId: 103, state: "stopped", importance: "low", purpose: "Windows VM", services: [] }
@@ -60,7 +60,7 @@ export const inventory = {
       category: "media",
       importance: "medium",
       purpose: "Plex Media Server running in its own Proxmox LXC.",
-      services: [{ id: "plex", name: "Plex", status: "documented", importance: "medium", url: "http://192.168.0.123:32400", checkUrl: "http://192.168.0.123:32400/identity" }]
+      services: [{ id: "plex", name: "Plex", status: "documented", importance: "medium", url: "http://192.168.0.16:32400/web", checkUrl: "http://192.168.0.16:32400/identity" }]
     },
     {
       id: "optipi-management-stack",

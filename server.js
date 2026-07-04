@@ -79,7 +79,7 @@ function cleanUrl(value) {
   }
 }
 
-function serviceFromInput(input) {
+function serviceFromInput(input, existing) {
   const name = cleanText(input.name, 120);
   if (!name) return { error: "Service name is required." };
   const url = cleanUrl(input.url);
@@ -89,8 +89,8 @@ function serviceFromInput(input) {
   const importance = new Set(["critical", "high", "medium", "low"]).has(input.importance) ? input.importance : "low";
   const status = new Set(["documented", "planned", "unstable", "unknown"]).has(input.status) ? input.status : "documented";
   return {
-    item: {
-      id: "custom-" + slugify(name) + "-" + Date.now().toString(36),
+    item: Object.assign({}, existing || {}, {
+      id: existing && existing.id ? existing.id : "custom-" + slugify(name) + "-" + Date.now().toString(36),
       name,
       status,
       importance,
@@ -100,9 +100,10 @@ function serviceFromInput(input) {
       host,
       category,
       source: "dashboard",
-      discovery: input.discovery || null,
-      createdAt: new Date().toISOString()
-    }
+      discovery: input.discovery || (existing && existing.discovery) || null,
+      createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    })
   };
 }
 
@@ -482,6 +483,51 @@ function handleApi(req, res, urlPath) {
       saveCustomServices(items);
       sendJson(res, 201, { service: result.item });
     });
+    return true;
+  }
+
+  if (urlPath.startsWith("/api/services/") && req.method === "PUT") {
+    const serviceId = decodeURIComponent(urlPath.slice("/api/services/".length));
+    readBody(req, (error, body) => {
+      if (error) {
+        sendJson(res, 400, { error: "Could not read request body." });
+        return;
+      }
+      let input;
+      try {
+        input = JSON.parse(body || "{}");
+      } catch (parseError) {
+        sendJson(res, 400, { error: "Invalid JSON." });
+        return;
+      }
+      const items = readCustomServices();
+      const index = items.findIndex((item) => item.id === serviceId);
+      if (index === -1) {
+        sendJson(res, 404, { error: "Service not found." });
+        return;
+      }
+      const result = serviceFromInput(input, items[index]);
+      if (result.error) {
+        sendJson(res, 400, { error: result.error });
+        return;
+      }
+      items[index] = result.item;
+      saveCustomServices(items);
+      sendJson(res, 200, { service: result.item });
+    });
+    return true;
+  }
+
+  if (urlPath.startsWith("/api/services/") && req.method === "DELETE") {
+    const serviceId = decodeURIComponent(urlPath.slice("/api/services/".length));
+    const items = readCustomServices();
+    const nextItems = items.filter((item) => item.id !== serviceId);
+    if (nextItems.length === items.length) {
+      sendJson(res, 404, { error: "Service not found." });
+      return true;
+    }
+    saveCustomServices(nextItems);
+    sendJson(res, 200, { ok: true });
     return true;
   }
 

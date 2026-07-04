@@ -1484,3 +1484,37 @@ button, input { font: inherit; }
   color: var(--muted);
   font-size: 0.82rem;
 }
+
+
+.service-row-actions,
+.service-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.service-edit-actions button {
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: var(--surface-strong, var(--surface));
+  color: var(--text);
+  cursor: pointer;
+}
+
+.service-edit-actions button.danger {
+  color: var(--danger, #b91c1c);
+}
+
+[data-theme="dark"] .service-edit-actions button {
+  background: #111827;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .service-edit-actions button.danger {
+  color: #fca5a5;
+}

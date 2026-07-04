@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const httpClient = require("http");
 const httpsClient = require("https");
+const dns = require("dns").promises;
 
 const root = __dirname;
 const port = Number(process.env.PORT || 4173);
@@ -242,7 +243,41 @@ async function hostHealthPayload() {
   return { checkedAt: new Date().toISOString(), results };
 }
 
+function normalizeClientIp(value) {
+  const raw = String(value || "").split(",")[0].trim();
+  if (!raw) return "";
+  if (raw.startsWith("::ffff:")) return raw.slice(7);
+  if (raw === "::1") return "127.0.0.1";
+  return raw;
+}
+
+function isPrivateIp(ip) {
+  return /^10\./.test(ip) || /^192\.168\./.test(ip) || /^172\.(1[6-9]|2\d|3[01])\./.test(ip) || ip === "127.0.0.1";
+}
+
+async function clientInfoPayload(req) {
+  const localIp = normalizeClientIp(req.headers["x-forwarded-for"] || req.socket.remoteAddress);
+  let hostname = "";
+  if (localIp && isPrivateIp(localIp) && localIp !== "127.0.0.1") {
+    try {
+      const names = await Promise.race([
+        dns.reverse(localIp),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("reverse lookup timeout")), 600))
+      ]);
+      hostname = Array.isArray(names) && names.length ? names[0] : "";
+    } catch (error) {
+      hostname = "";
+    }
+  }
+  return { localIp, hostname, checkedAt: new Date().toISOString() };
+}
+
 function handleApi(req, res, urlPath) {
+  if (urlPath === "/api/client-info" && req.method === "GET") {
+    clientInfoPayload(req).then((payload) => sendJson(res, 200, payload)).catch((error) => sendJson(res, 500, { error: error.message }));
+    return true;
+  }
+
   if (urlPath === "/api/host-health" && req.method === "GET") {
     hostHealthPayload().then((payload) => sendJson(res, 200, payload)).catch((error) => sendJson(res, 500, { error: error.message }));
     return true;

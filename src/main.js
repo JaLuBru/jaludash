@@ -23,7 +23,9 @@ const state = {
   hostHealth: [],
   hostHealthCheckedAt: "",
   hostHealthError: "",
-  hostHealthLoading: false
+  hostHealthLoading: false,
+  clientInfo: { localIp: "", publicIp: "", hostname: "", error: "" },
+  clientInfoLoaded: false
 };
 const app = document.querySelector("#app");
 const fencePattern = new RegExp(String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96) + "[\\s\\S]*?" + String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96), "g");
@@ -74,6 +76,35 @@ async function loadHostHealth() {
   } finally {
     state.hostHealthLoading = false;
   }
+}
+
+async function loadClientInfo() {
+  try {
+    const response = await fetch("/api/client-info");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Client info unavailable.");
+    state.clientInfo = Object.assign({}, state.clientInfo, data);
+  } catch (error) {
+    state.clientInfo.error = error.message;
+  }
+
+  try {
+    const response = await fetch("https://api.ipify.org?format=json", { cache: "no-store" });
+    const data = await response.json();
+    state.clientInfo.publicIp = data.ip || "";
+  } catch (error) {
+    state.clientInfo.publicIp = "";
+  } finally {
+    state.clientInfoLoaded = true;
+  }
+}
+
+function clientInfoCard() {
+  const info = state.clientInfo || {};
+  const title = info.hostname || info.localIp || "This device";
+  const local = info.localIp ? "Local " + info.localIp : "Local unknown";
+  const pub = info.publicIp ? "Public " + info.publicIp : "Public unknown";
+  return '<aside class="network-card"><span>This device</span><strong>' + escapeHtml(title) + '</strong><small>' + escapeHtml(local + ' / ' + pub) + '</small></aside>';
 }
 
 function refreshLiveDataAndRender() {
@@ -252,7 +283,7 @@ function openLink(item) {
 
 function shell(content) {
   const tabs = [["overview", "Overview"], ["services", "Services"], ["roadmap", "Roadmap"]];
-  app.innerHTML = '<header class="topbar"><div><h1>Personal Homelab</h1></div><div class="top-actions"><button class="theme-toggle" data-status-refresh="true" type="button">' + ((state.statusLoading || state.hostHealthLoading) ? 'Checking...' : 'Refresh live data') + '</button><button class="theme-toggle" data-theme-toggle="true" type="button">' + (state.theme === 'dark' ? 'Light mode' : 'Dark mode') + '</button><aside class="network-card"><span>' + inventory.network.subnet + '</span><strong>' + inventory.network.adminPc.hostname + '</strong><small>' + inventory.network.adminPc.ip + '</small></aside></div></header><nav class="tabs">' + tabs.map(([id, label]) => '<button class="' + ((state.view === id || (state.view === 'service-detail' && id === 'services')) ? 'active' : '') + '" data-view="' + id + '">' + label + '</button>').join('') + '</nav>' + content;
+  app.innerHTML = '<header class="topbar"><div><h1>Personal Homelab</h1></div><div class="top-actions"><button class="theme-toggle" data-status-refresh="true" type="button">' + ((state.statusLoading || state.hostHealthLoading) ? 'Checking...' : 'Refresh live data') + '</button><button class="theme-toggle" data-theme-toggle="true" type="button">' + (state.theme === 'dark' ? 'Light mode' : 'Dark mode') + '</button>' + clientInfoCard() + '</div></header><nav class="tabs">' + tabs.map(([id, label]) => '<button class="' + ((state.view === id || (state.view === 'service-detail' && id === 'services')) ? 'active' : '') + '" data-view="' + id + '">' + label + '</button>').join('') + '</nav>' + content;
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => { state.view = button.dataset.view; render(); if (state.view === "roadmap" && !state.roadmapLoaded) loadRoadmapItems().finally(render); refreshLiveDataAndRender(); }));
   const statusRefresh = document.querySelector("[data-status-refresh]");
   if (statusRefresh) statusRefresh.addEventListener("click", refreshStatusAndRender);
@@ -468,4 +499,5 @@ function render() {
 render();
 loadServiceDocs().finally(render);
 loadRoadmapItems().finally(render);
+loadClientInfo().finally(render);
 refreshLiveDataAndRender();

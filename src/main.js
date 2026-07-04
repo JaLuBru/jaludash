@@ -42,15 +42,34 @@ async function loadServiceDocs() {
   }
 }
 
-function copyToClipboard(text, button) {
-  navigator.clipboard.writeText(text).then(() => {
-    const original = button.textContent;
-    button.textContent = "Copied";
+async function copyToClipboard(text, button) {
+  const original = button.textContent || "Copy";
+  const showResult = (label) => {
+    button.textContent = label;
     setTimeout(() => { button.textContent = original; }, 1200);
-  }).catch(() => {
-    button.textContent = "Copy failed";
-    setTimeout(() => { button.textContent = "Copy"; }, 1200);
-  });
+  };
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      const copied = document.execCommand("copy");
+      textarea.remove();
+      if (!copied) throw new Error("copy command failed");
+    }
+    showResult("Copied");
+  } catch (error) {
+    showResult("Copy failed");
+  }
 }
 
 function applyTheme() {

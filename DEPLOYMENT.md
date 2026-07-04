@@ -58,6 +58,16 @@ git -c credential.helper= pull origin main
 
 If the server still asks for a password, use either a GitHub personal access token as the password or switch the remote to SSH with a deploy key.
 
+## Storage And Discovery
+
+Storage uses node_exporter metrics from the configured hosts. Auto-discovery reads the local Docker engine through a read-only socket mount:
+
+```yaml
+- /var/run/docker.sock:/var/run/docker.sock:ro
+```
+
+This lets jaludash list containers on the Docker LXC and compare them with the inventory. It is read-only from the compose file, but Docker socket access is still powerful, so keep jaludash private to your LAN.
+
 ## Current Scope
 
 This deployment is still read-only, but it now includes live reachability checks and host-health overviews when the configured endpoints are reachable.

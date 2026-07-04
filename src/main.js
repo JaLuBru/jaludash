@@ -25,7 +25,10 @@ const state = {
   hostHealthError: "",
   hostHealthLoading: false,
   clientInfo: { localIp: "", publicIp: "", hostname: "", error: "" },
-  clientInfoLoaded: false
+  clientInfoLoaded: false,
+  discovery: { dockerAvailable: false, containers: [], unknown: [], checkedAt: "" },
+  discoveryLoading: false,
+  discoveryError: ""
 };
 const app = document.querySelector("#app");
 const fencePattern = new RegExp(String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96) + "[\\s\\S]*?" + String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96), "g");
@@ -126,8 +129,24 @@ function clientInfoCard() {
   return '<aside class="network-card"><span>This device</span><strong>' + escapeHtml(title) + '</strong><small>' + escapeHtml(local + ' / ' + pub) + '</small></aside>';
 }
 
+async function loadDiscovery() {
+  state.discoveryLoading = true;
+  state.discoveryError = "";
+  try {
+    const response = await fetch("/api/discovery");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Discovery failed.");
+    state.discovery = data;
+    state.discoveryError = data.error || "";
+  } catch (error) {
+    state.discoveryError = error.message;
+  } finally {
+    state.discoveryLoading = false;
+  }
+}
+
 function refreshLiveDataAndRender() {
-  Promise.all([loadStatus(), loadHostHealth()]).finally(render);
+  Promise.all([loadStatus(), loadHostHealth(), loadDiscovery()]).finally(render);
 }
 
 function formatUptime(seconds) {
@@ -301,7 +320,7 @@ function openLink(item) {
 }
 
 function shell(content) {
-  const tabs = [["overview", "Overview"], ["services", "Services"], ["roadmap", "Roadmap"]];
+  const tabs = [["overview", "Overview"], ["storage", "Storage"], ["services", "Services"], ["discovery", "Discovery"], ["roadmap", "Roadmap"]];
   app.innerHTML = '<header class="topbar"><div><h1>Personal Homelab</h1></div><div class="top-actions"><button class="theme-toggle" data-status-refresh="true" type="button">' + ((state.statusLoading || state.hostHealthLoading) ? 'Checking...' : 'Refresh live data') + '</button><button class="theme-toggle" data-theme-toggle="true" type="button">' + (state.theme === 'dark' ? 'Light mode' : 'Dark mode') + '</button>' + clientInfoCard() + '</div></header><nav class="tabs">' + tabs.map(([id, label]) => '<button class="' + ((state.view === id || (state.view === 'service-detail' && id === 'services')) ? 'active' : '') + '" data-view="' + id + '">' + label + '</button>').join('') + '</nav>' + content;
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => { state.view = button.dataset.view; render(); if (state.view === "roadmap" && !state.roadmapLoaded) loadRoadmapItems().finally(render); refreshLiveDataAndRender(); }));
   const statusRefresh = document.querySelector("[data-status-refresh]");
@@ -479,6 +498,48 @@ function serviceDetail() {
   }));
 }
 
+
+function storageItems() {
+  return state.hostHealth.flatMap((host) => ((host.metrics && host.metrics.storage && host.metrics.storage.filesystems) || []).map((fs) => Object.assign({}, fs, { hostName: host.name, hostShortName: host.shortName, metricsState: host.metricsState })));
+}
+
+function storageSummary(items) {
+  return {
+    total: items.length,
+    watch: items.filter((item) => ['medium', 'high', 'critical'].includes(item.severity)).length,
+    critical: items.filter((item) => item.severity === 'critical').length,
+    capacity: Math.round(items.reduce((sum, item) => sum + (item.totalGiB || 0), 0) * 10) / 10
+  };
+}
+
+function storageCard(item) {
+  const label = item.hostShortName + ' ' + item.mount;
+  const flags = [item.fstype, item.readonly ? 'read only' : '', item.deviceError ? 'device error' : ''].filter(Boolean).join(' / ');
+  return '<article class="storage-card ' + escapeHtml(item.severity) + '"><div class="card-head"><div><h3>' + escapeHtml(label) + '</h3><p>' + escapeHtml(item.device || 'unknown device') + '</p></div>' + badge(item.severity, item.severity) + '</div><div class="health-meter"><div><span>Used</span><strong>' + escapeHtml(item.usedPercent) + '%</strong></div><div class="meter-track"><span style="width:' + Math.min(100, item.usedPercent || 0) + '%"></span></div><small>' + escapeHtml(item.usedGiB) + ' / ' + escapeHtml(item.totalGiB) + ' GiB used, ' + escapeHtml(item.availableGiB) + ' GiB free</small></div><p class="storage-meta">' + escapeHtml(flags || 'filesystem') + '</p></article>';
+}
+
+function diskCard(host, disk) {
+  const details = [disk.model, disk.serial, disk.temperatureC !== null && disk.temperatureC !== undefined ? disk.temperatureC + ' C' : '', disk.wearPercent !== null && disk.wearPercent !== undefined ? disk.wearPercent + '% wear' : ''].filter(Boolean).join(' / ');
+  return '<article class="disk-card"><div><strong>' + escapeHtml(disk.device) + '</strong><span>' + escapeHtml(host.shortName) + '</span></div><p>' + escapeHtml(details || disk.type || 'disk') + '</p><span class="status-chip ' + (disk.health === 'healthy' ? 'online' : disk.health === 'attention' ? 'degraded' : 'unknown') + '">' + escapeHtml(disk.health || 'unknown') + '</span></article>';
+}
+
+function storageOverview() {
+  const items = storageItems();
+  const summary = storageSummary(items);
+  const diskCards = state.hostHealth.flatMap((host) => ((host.metrics && host.metrics.storage && host.metrics.storage.disks) || []).map((disk) => diskCard(host, disk))).join('') || '<div class="empty">No physical disk details found yet.</div>';
+  shell('<main class="page storage-page"><section class="stats"><article><span>Filesystems</span><strong>' + summary.total + '</strong></article><article><span>Watch</span><strong>' + summary.watch + '</strong></article><article><span>Critical</span><strong>' + summary.critical + '</strong></article><article><span>Capacity</span><strong>' + summary.capacity + ' GiB</strong></article></section><section><div class="section-title"><p class="eyebrow">Storage Overview</p><h2>Disks and mounts needing attention</h2><p class="status-timestamp">' + (state.hostHealthCheckedAt ? 'Last checked ' + new Date(state.hostHealthCheckedAt).toLocaleTimeString() : 'Storage not checked yet') + (state.hostHealthError ? ' / ' + escapeHtml(state.hostHealthError) : '') + '</p></div><div class="storage-grid">' + (items.map(storageCard).join('') || '<div class="empty">No storage metrics available yet.</div>') + '</div></section><section><div class="section-title"><p class="eyebrow">Physical Disks</p><h2>SMART and device hints</h2></div><div class="disk-grid">' + diskCards + '</div></section></main>');
+}
+
+function discoveryOverview() {
+  const containers = state.discovery.containers || [];
+  const unknown = state.discovery.unknown || [];
+  const cards = containers.map((container) => {
+    const ports = (container.ports || []).map((port) => [port.publicPort, port.privatePort].filter(Boolean).join('->') + '/' + (port.type || 'tcp')).join(', ');
+    return '<article class="discovery-card ' + (container.known ? 'known' : 'unknown') + '"><div class="card-head"><div><h3>' + escapeHtml(container.name || container.id) + '</h3><p>' + escapeHtml(container.image) + '</p></div><span class="status-chip ' + (container.state === 'running' ? 'online' : 'unknown') + '">' + escapeHtml(container.state || 'unknown') + '</span></div><div class="group-meta"><span>' + (container.known ? 'In inventory' : 'New to inventory') + '</span>' + (ports ? '<span>' + escapeHtml(ports) + '</span>' : '') + '</div><p class="storage-meta">' + escapeHtml(container.status || '') + '</p></article>';
+  }).join('') || '<div class="empty">No Docker containers found yet.</div>';
+  shell('<main class="page discovery-page"><section class="stats"><article><span>Docker</span><strong>' + (state.discovery.dockerAvailable ? 'OK' : 'Off') + '</strong></article><article><span>Containers</span><strong>' + containers.length + '</strong></article><article><span>New</span><strong>' + unknown.length + '</strong></article><article><span>Running</span><strong>' + containers.filter((item) => item.state === 'running').length + '</strong></article></section><section><div class="section-title"><p class="eyebrow">Auto Discovery</p><h2>Docker containers compared with inventory</h2><p class="status-timestamp">' + (state.discovery.checkedAt ? 'Last checked ' + new Date(state.discovery.checkedAt).toLocaleTimeString() : 'Discovery not checked yet') + (state.discoveryError ? ' / ' + escapeHtml(state.discoveryError) : '') + '</p></div><div class="discovery-results">' + cards + '</div></section></main>');
+}
+
 function roadmapCard(item, sourceLabel) {
   const body = item.blocker || item.purpose || item.note || (item.targetHost ? ('Target host: ' + hostName(item.targetHost)) : item.target || 'No details yet.');
   const meta = sourceLabel ? sourceLabel + ' / ' + item.status : item.status;
@@ -509,7 +570,9 @@ function roadmap() {
 }
 
 function render() {
+  if (state.view === "storage") return storageOverview();
   if (state.view === "services") return serviceDirectory();
+  if (state.view === "discovery") return discoveryOverview();
   if (state.view === "roadmap") return roadmap();
   if (state.view === "service-detail") return serviceDetail();
   overview();

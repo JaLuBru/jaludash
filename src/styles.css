@@ -1263,3 +1263,92 @@ button, input { font: inherit; }
   background: #0b1016;
   color: #edf2f7;
 }
+
+
+.storage-page,
+.discovery-page {
+  gap: 24px;
+}
+
+.storage-grid,
+.discovery-results,
+.disk-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.storage-card,
+.discovery-card,
+.disk-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.storage-card.critical {
+  border-color: var(--critical);
+}
+
+.storage-card.high {
+  border-color: var(--high);
+}
+
+.storage-card.medium {
+  border-color: var(--medium);
+}
+
+.storage-meta,
+.discovery-card p,
+.disk-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.disk-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.disk-card div {
+  display: grid;
+  gap: 3px;
+}
+
+.disk-card span:not(.status-chip) {
+  color: var(--muted);
+  font-size: .84rem;
+}
+
+.discovery-card.unknown {
+  border-color: color-mix(in srgb, var(--high) 65%, var(--line));
+}
+
+:root[data-theme="dark"] .storage-card,
+:root[data-theme="dark"] .discovery-card,
+:root[data-theme="dark"] .disk-card {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .storage-meta,
+:root[data-theme="dark"] .discovery-card p,
+:root[data-theme="dark"] .disk-card p,
+:root[data-theme="dark"] .disk-card span:not(.status-chip) {
+  color: var(--muted);
+}
+
+@media (max-width: 980px) {
+  .storage-grid,
+  .discovery-results,
+  .disk-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -20,6 +20,10 @@ const state = {
   statusCheckedAt: "",
   statusLoading: false,
   statusError: "",
+  history: { status: [], hosts: [], speed: [] },
+  historyLoaded: false,
+  historyError: "",
+  speedTesting: false,
   hostHealth: [],
   hostHealthCheckedAt: "",
   hostHealthError: "",
@@ -178,7 +182,7 @@ async function loadProxmox() {
 }
 
 function refreshLiveDataAndRender() {
-  Promise.all([loadStatus(), loadHostHealth(), loadDiscovery(), loadProxmox()]).finally(render);
+  Promise.all([loadStatus(), loadHostHealth(), loadDiscovery(), loadProxmox()]).then(loadHistory).finally(render);
 }
 
 function formatUptime(seconds) {
@@ -217,6 +221,40 @@ async function loadStatus() {
     state.statusError = error.message;
   } finally {
     state.statusLoading = false;
+  }
+}
+
+async function loadHistory() {
+  try {
+    const response = await fetch("/api/history");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "History unavailable.");
+    state.history = {
+      status: Array.isArray(data.status) ? data.status : [],
+      hosts: Array.isArray(data.hosts) ? data.hosts : [],
+      speed: Array.isArray(data.speed) ? data.speed : []
+    };
+    state.historyLoaded = true;
+    state.historyError = "";
+  } catch (error) {
+    state.historyError = error.message;
+  }
+}
+
+async function runSpeedTest() {
+  state.speedTesting = true;
+  trends();
+  try {
+    const response = await fetch("/api/speed-test", { method: "POST" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Speed test failed.");
+    state.history.speed = state.history.speed.concat(data).slice(-1000);
+    state.historyError = "";
+  } catch (error) {
+    state.historyError = error.message;
+  } finally {
+    state.speedTesting = false;
+    trends();
   }
 }
 
@@ -655,7 +693,7 @@ function openLink(item) {
 }
 
 function shell(content) {
-  const tabs = [["overview", "Overview"], ["storage", "Storage"], ["services", "Services"], ["discovery", "Discovery"], ["roadmap", "Roadmap"]];
+  const tabs = [["overview", "Overview"], ["storage", "Storage"], ["trends", "Trends"], ["services", "Services"], ["discovery", "Discovery"], ["roadmap", "Roadmap"]];
   app.innerHTML = '<header class="topbar"><div><h1>Personal Homelab</h1></div><div class="top-actions"><button class="theme-toggle" data-status-refresh="true" type="button">' + ((state.statusLoading || state.hostHealthLoading) ? 'Checking...' : 'Refresh live data') + '</button><button class="theme-toggle" data-theme-toggle="true" type="button">' + (state.theme === 'dark' ? 'Light mode' : 'Dark mode') + '</button>' + clientInfoCard() + '</div></header><nav class="tabs">' + tabs.map(([id, label]) => '<button class="' + ((state.view === id || (state.view === 'service-detail' && id === 'services')) ? 'active' : '') + '" data-view="' + id + '">' + label + '</button>').join('') + '</nav>' + content;
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => { state.view = button.dataset.view; render(); if (state.view === "roadmap" && !state.roadmapLoaded) loadRoadmapItems().finally(render); }));
   const statusRefresh = document.querySelector("[data-status-refresh]");
@@ -932,8 +970,40 @@ function roadmap() {
   }));
 }
 
+function lastItem(items) {
+  return items && items.length ? items[items.length - 1] : null;
+}
+
+function trendBars(items, valueFn, toneFn) {
+  const values = (items || []).slice(-30).map(valueFn).filter((value) => value !== null && value !== undefined && Number.isFinite(value));
+  if (!values.length) return '<div class="empty inline-empty">No trend data yet.</div>';
+  const max = Math.max(1, ...values);
+  return '<div class="trend-bars">' + values.map((value) => '<span class="' + (toneFn ? toneFn(value) : '') + '" style="height:' + Math.max(8, Math.round((value / max) * 100)) + '%" title="' + escapeHtml(value) + '"></span>').join('') + '</div>';
+}
+
+function hostTrendRows() {
+  const latest = lastItem(state.history.hosts) || { hosts: [] };
+  const hosts = latest.hosts || [];
+  return hosts.map((host) => {
+    const hostSamples = state.history.hosts.map((sample) => (sample.hosts || []).find((item) => item.id === host.id)).filter(Boolean);
+    const media = host.storage && host.storage.find((fs) => fs.mount === '/media/wd2001ext4');
+    return '<article class="trend-card"><div class="card-head"><div><h3>' + escapeHtml(host.id) + '</h3><p>' + escapeHtml(host.metricsState || 'unknown') + '</p></div>' + badge(host.rootUsedPercent === null || host.rootUsedPercent === undefined ? 'unknown' : host.rootUsedPercent + '%') + '</div><div class="mini"><h4>Root disk</h4>' + trendBars(hostSamples, (item) => item.rootUsedPercent) + '</div><div class="mini"><h4>Memory</h4>' + trendBars(hostSamples, (item) => item.memoryUsedPercent) + '</div>' + (media ? '<p class="storage-meta">Media mount /media/wd2001ext4: ' + escapeHtml(media.usedPercent === null || media.usedPercent === undefined ? 'usage unknown' : media.usedPercent + '% used') + '</p>' : '') + '</article>';
+  }).join('') || '<div class="empty">No host trend samples yet.</div>';
+}
+
+function trends() {
+  const latestStatus = lastItem(state.history.status);
+  const latestSpeed = lastItem(state.history.speed);
+  const speedText = latestSpeed ? (latestSpeed.downloadMbps ? latestSpeed.downloadMbps + ' Mbps' : latestSpeed.state || 'unknown') : 'No test yet';
+  const offlineText = latestStatus ? ((latestStatus.offline || []).length + ' offline / ' + ((latestStatus.degraded || []).length) + ' degraded') : 'No status samples yet';
+  shell('<main class="page trends-page"><section class="stats"><article><span>Status samples</span><strong>' + state.history.status.length + '</strong></article><article><span>Host samples</span><strong>' + state.history.hosts.length + '</strong></article><article><span>Speed tests</span><strong>' + state.history.speed.length + '</strong></article><article><span>Latest speed</span><strong>' + escapeHtml(speedText) + '</strong></article></section><section class="service-hero"><div><h2>History and trends</h2><p class="status-timestamp">' + escapeHtml(offlineText) + (state.historyError ? ' / ' + escapeHtml(state.historyError) : '') + '</p></div><button class="primary-action inline-action" type="button" data-speed-test="true" ' + (state.speedTesting ? 'disabled' : '') + '>' + (state.speedTesting ? 'Testing...' : 'Run speed test') + '</button></section><section><div class="section-title"><p class="eyebrow">Reachability</p><h2>Online, degraded, and offline counts</h2></div><div class="trend-grid"><article class="trend-card"><h3>Offline</h3>' + trendBars(state.history.status, (item) => (item.summary && item.summary.offline) || 0, (value) => value ? 'bad' : 'good') + '</article><article class="trend-card"><h3>Degraded</h3>' + trendBars(state.history.status, (item) => (item.summary && item.summary.degraded) || 0, (value) => value ? 'warn' : 'good') + '</article><article class="trend-card"><h3>Online</h3>' + trendBars(state.history.status, (item) => (item.summary && item.summary.online) || 0, () => 'good') + '</article></div></section><section><div class="section-title"><p class="eyebrow">Hosts</p><h2>Resource trends</h2></div><div class="trend-grid">' + hostTrendRows() + '</div></section><section><div class="section-title"><p class="eyebrow">Internet</p><h2>Download speed history</h2></div><div class="trend-grid"><article class="trend-card"><h3>Mbps</h3>' + trendBars(state.history.speed, (item) => item.downloadMbps, () => 'good') + '<p class="storage-meta">' + (latestSpeed ? 'Last checked ' + new Date(latestSpeed.checkedAt).toLocaleString() : 'Run a test to start history.') + '</p></article></div></section></main>');
+  const button = document.querySelector('[data-speed-test]');
+  if (button) button.addEventListener('click', runSpeedTest);
+}
+
 function renderContent() {
   if (state.view === "storage") return storageOverview();
+  if (state.view === "trends") return trends();
   if (state.view === "services") return serviceDirectory();
   if (state.view === "discovery") return discoveryOverview();
   if (state.view === "roadmap") return roadmap();
@@ -953,4 +1023,5 @@ loadServiceDocs().finally(render);
 Promise.all([loadCustomServices(), loadCustomGroups()]).finally(render);
 loadRoadmapItems().finally(render);
 loadClientInfo().finally(render);
+loadHistory().finally(render);
 refreshLiveDataAndRender();

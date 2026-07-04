@@ -12,6 +12,7 @@ const dataDir = path.join(root, "data");
 const roadmapFile = path.join(dataDir, "roadmap-items.json");
 const customServicesFile = path.join(dataDir, "custom-services.json");
 const customGroupsFile = path.join(dataDir, "custom-groups.json");
+const historyFile = path.join(dataDir, "history.json");
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -62,6 +63,31 @@ function readCustomGroups() {
 function saveCustomGroups(items) {
   fs.mkdirSync(dataDir, { recursive: true });
   fs.writeFileSync(customGroupsFile, JSON.stringify(items, null, 2) + "\n", "utf8");
+}
+
+function readHistory() {
+  try {
+    const history = JSON.parse(fs.readFileSync(historyFile, "utf8"));
+    return {
+      status: Array.isArray(history.status) ? history.status : [],
+      hosts: Array.isArray(history.hosts) ? history.hosts : [],
+      speed: Array.isArray(history.speed) ? history.speed : []
+    };
+  } catch (error) {
+    return { status: [], hosts: [], speed: [] };
+  }
+}
+
+function saveHistory(history) {
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(historyFile, JSON.stringify(history, null, 2) + "\n", "utf8");
+}
+
+function appendHistory(kind, item) {
+  const history = readHistory();
+  const limit = Number(process.env.HISTORY_LIMIT || 1000);
+  history[kind] = (history[kind] || []).concat(item).slice(-limit);
+  saveHistory(history);
 }
 
 function readBody(req, callback) {
@@ -273,12 +299,19 @@ async function statusPayload() {
     acc[result.state] = (acc[result.state] || 0) + 1;
     return acc;
   }, { online: 0, degraded: 0, offline: 0, unknown: 0 });
-  return {
+  const payload = {
     checkedAt: new Date().toISOString(),
     timeoutMs: Number(process.env.STATUS_TIMEOUT_MS || 4000),
     summary,
     results
   };
+  appendHistory("status", {
+    checkedAt: payload.checkedAt,
+    summary,
+    offline: results.filter((item) => item.state === "offline").map((item) => item.id),
+    degraded: results.filter((item) => item.state === "degraded").map((item) => item.id)
+  });
+  return payload;
 }
 
 function bytesToGiB(value) {
@@ -416,6 +449,39 @@ async function fetchText(url) {
   });
 }
 
+async function measureDownloadSpeed() {
+  const targetUrl = process.env.SPEED_TEST_URL || "https://speed.cloudflare.com/__down?bytes=25000000";
+  const started = Date.now();
+  let bytes = 0;
+  return new Promise((resolve, reject) => {
+    const target = new URL(targetUrl);
+    const client = target.protocol === "https:" ? httpsClient : httpClient;
+    const req = client.request(target, { method: "GET", timeout: Number(process.env.SPEED_TEST_TIMEOUT_MS || 20000), rejectUnauthorized: false }, (response) => {
+      response.on("data", (chunk) => { bytes += chunk.length; });
+      response.on("end", () => {
+        const durationMs = Math.max(1, Date.now() - started);
+        const mbps = Math.round(((bytes * 8) / (durationMs / 1000) / 1000 / 1000) * 10) / 10;
+        resolve({ checkedAt: new Date().toISOString(), targetUrl, bytes, durationMs, downloadMbps: mbps, state: response.statusCode >= 500 ? "degraded" : "online", httpStatus: response.statusCode || 0 });
+      });
+    });
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+async function speedPayload() {
+  try {
+    const result = await measureDownloadSpeed();
+    appendHistory("speed", result);
+    return result;
+  } catch (error) {
+    const result = { checkedAt: new Date().toISOString(), state: "offline", error: error.message, downloadMbps: null };
+    appendHistory("speed", result);
+    return result;
+  }
+}
+
 async function checkHostHealth(host) {
   const management = await checkHttpService({ id: host.id, name: host.name, url: host.managementUrl, checkUrl: host.managementUrl, okStatuses: [200, 401, 403] });
   let metrics = null;
@@ -441,7 +507,19 @@ async function checkHostHealth(host) {
 async function hostHealthPayload() {
   const hosts = readInventoryHosts();
   const results = await Promise.all(hosts.map(checkHostHealth));
-  return { checkedAt: new Date().toISOString(), results };
+  const checkedAt = new Date().toISOString();
+  appendHistory("hosts", {
+    checkedAt,
+    hosts: results.map((host) => ({
+      id: host.id,
+      managementState: host.management && host.management.state ? host.management.state : "unknown",
+      metricsState: host.metricsState,
+      memoryUsedPercent: host.metrics && host.metrics.memory ? host.metrics.memory.usedPercent : null,
+      rootUsedPercent: host.metrics && host.metrics.disk ? host.metrics.disk.usedPercent : null,
+      storage: host.metrics && host.metrics.storage ? host.metrics.storage.filesystems.map((fs) => ({ mount: fs.mount, device: fs.device, usedPercent: fs.usedPercent, totalGiB: fs.totalGiB, availableGiB: fs.availableGiB, severity: fs.severity })) : []
+    }))
+  });
+  return { checkedAt, results };
 }
 
 function normalizeClientIp(value) {
@@ -745,6 +823,16 @@ function handleApi(req, res, urlPath) {
 
   if (urlPath === "/api/status" && req.method === "GET") {
     statusPayload().then((payload) => sendJson(res, 200, payload)).catch((error) => sendJson(res, 500, { error: error.message }));
+    return true;
+  }
+
+  if (urlPath === "/api/history" && req.method === "GET") {
+    sendJson(res, 200, readHistory());
+    return true;
+  }
+
+  if (urlPath === "/api/speed-test" && req.method === "POST") {
+    speedPayload().then((payload) => sendJson(res, 200, payload)).catch((error) => sendJson(res, 500, { error: error.message }));
     return true;
   }
 

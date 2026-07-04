@@ -1,7 +1,8 @@
 import { inventory } from "./inventory.js";
-import { serviceDocs } from "./serviceDocs.js";
-
 const rank = { critical: 4, high: 3, medium: 2, low: 1 };
+let serviceDocs = {};
+let serviceDocsLoaded = false;
+let serviceDocsLoading = false;
 const state = {
   view: "overview",
   query: "",
@@ -26,6 +27,18 @@ const state = {
 };
 const app = document.querySelector("#app");
 const fencePattern = new RegExp(String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96) + "[\\s\\S]*?" + String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96), "g");
+
+async function loadServiceDocs() {
+  if (serviceDocsLoaded || serviceDocsLoading) return;
+  serviceDocsLoading = true;
+  try {
+    const module = await import("./serviceDocs.js");
+    serviceDocs = module.serviceDocs || {};
+    serviceDocsLoaded = true;
+  } finally {
+    serviceDocsLoading = false;
+  }
+}
 
 function copyToClipboard(text, button) {
   navigator.clipboard.writeText(text).then(() => {
@@ -240,7 +253,7 @@ function openLink(item) {
 function shell(content) {
   const tabs = [["overview", "Overview"], ["services", "Services"], ["roadmap", "Roadmap"]];
   app.innerHTML = '<header class="topbar"><div><h1>Personal Homelab</h1></div><div class="top-actions"><button class="theme-toggle" data-status-refresh="true" type="button">' + ((state.statusLoading || state.hostHealthLoading) ? 'Checking...' : 'Refresh live data') + '</button><button class="theme-toggle" data-theme-toggle="true" type="button">' + (state.theme === 'dark' ? 'Light mode' : 'Dark mode') + '</button><aside class="network-card"><span>' + inventory.network.subnet + '</span><strong>' + inventory.network.adminPc.hostname + '</strong><small>' + inventory.network.adminPc.ip + '</small></aside></div></header><nav class="tabs">' + tabs.map(([id, label]) => '<button class="' + ((state.view === id || (state.view === 'service-detail' && id === 'services')) ? 'active' : '') + '" data-view="' + id + '">' + label + '</button>').join('') + '</nav>' + content;
-  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => { state.view = button.dataset.view; Promise.all([loadRoadmapItems(), loadStatus(), loadHostHealth()]).finally(render); }));
+  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => { state.view = button.dataset.view; render(); if (state.view === "roadmap" && !state.roadmapLoaded) loadRoadmapItems().finally(render); refreshLiveDataAndRender(); }));
   const statusRefresh = document.querySelector("[data-status-refresh]");
   if (statusRefresh) statusRefresh.addEventListener("click", refreshStatusAndRender);
   const themeToggle = document.querySelector("[data-theme-toggle]");
@@ -405,7 +418,7 @@ function serviceDetail() {
   const issues = serviceIssues(service);
   const links = doc && doc.links.length ? doc.links.map((link) => '<a href="' + escapeHtml(link.url) + '" target="_blank" rel="noreferrer">' + escapeHtml(link.label) + '</a>').join('') : '<span class="muted">No links found in the Obsidian note.</span>';
   const runbookCommands = renderRunbookCommands(doc);
-  const docsPanel = doc ? '<div class="wiki-content"><section class="wiki-main runbook-main"><div class="section-title"><p class="eyebrow">Service Notes</p><h2>Runbook</h2></div>' + runbookCommands + '</section><section class="wiki-main"><div class="section-title"><p class="eyebrow">Obsidian Note</p><h2>' + escapeHtml(doc.title) + '</h2></div><p class="source-file">' + escapeHtml(doc.sourceFile) + '</p><div class="wiki-markdown">' + renderMarkdown(doc.markdown) + '</div></section></div>' : '<section class="wiki-main empty-doc"><h2>No Obsidian note matched yet</h2><p>This service still has inventory data, but no app note was matched during import.</p></section>';
+  const docsPanel = doc ? '<div class="wiki-content"><section class="wiki-main runbook-main"><div class="section-title"><p class="eyebrow">Service Notes</p><h2>Runbook</h2></div>' + runbookCommands + '</section><section class="wiki-main"><div class="section-title"><p class="eyebrow">Obsidian Note</p><h2>' + escapeHtml(doc.title) + '</h2></div><p class="source-file">' + escapeHtml(doc.sourceFile) + '</p><div class="wiki-markdown">' + renderMarkdown(doc.markdown) + '</div></section></div>' : (!serviceDocsLoaded ? '<section class="wiki-main empty-doc"><h2>Loading documentation</h2><p>The dashboard is loading service notes in the background.</p></section>' : '<section class="wiki-main empty-doc"><h2>No Obsidian note matched yet</h2><p>This service still has inventory data, but no app note was matched during import.</p></section>');
   shell('<main class="page wiki-page"><button class="back-button" type="button" data-back-services="true">Back to services</button><section class="wiki-hero"><div><p class="eyebrow">Service Detail</p><h2>' + escapeHtml(service.name) + '</h2><p>' + escapeHtml(service.groupPurpose || service.purpose || 'No purpose documented yet.') + '</p></div><div class="wiki-actions">' + openLink(service) + statusChip(service.id) + badge(service.importance, service.importance) + badge(service.status || 'documented') + '</div></section><section class="wiki-layout"><aside class="wiki-side"><div class="wiki-box"><h3>Inventory</h3><div class="fact-list"><div><span>Stack</span><strong>' + escapeHtml(service.group) + '</strong></div><div><span>Runs on</span><strong>' + escapeHtml(hostName(service.groupHost)) + '</strong></div><div><span>Physical host</span><strong>' + escapeHtml(hostName(service.parentHost)) + '</strong></div><div><span>Category</span><strong>' + escapeHtml(service.category) + '</strong></div><div><span>URL</span><strong>' + escapeHtml(service.url || 'No URL yet') + '</strong></div><div><span>Status detail</span><strong>' + escapeHtml(statusMeta(service.id)) + '</strong></div></div></div><div class="wiki-box"><h3>Documentation status</h3><div class="issue-row wiki-issues">' + (issues.length ? issues.map((issue) => '<span>' + escapeHtml(issue) + '</span>').join('') : '<span>Looks documented</span>') + '</div></div><div class="wiki-box"><h3>Obsidian metadata</h3><div class="fact-list">' + (doc ? frontmatterRows(doc.frontmatter) : '<div><span>source</span><strong>Not matched</strong></div>') + '</div></div><div class="wiki-box link-list"><h3>Links</h3>' + links + '</div></aside>' + docsPanel + '</section></main>');
   const back = document.querySelector('[data-back-services]');
   if (back) back.addEventListener('click', () => { state.view = 'services'; render(); });
@@ -452,4 +465,7 @@ function render() {
   overview();
 }
 
-Promise.all([loadRoadmapItems(), loadStatus(), loadHostHealth()]).finally(render);
+render();
+loadServiceDocs().finally(render);
+loadRoadmapItems().finally(render);
+refreshLiveDataAndRender();

@@ -168,20 +168,32 @@ function bytesToGiB(value) {
   return Math.round((Number(value) / 1024 / 1024 / 1024) * 10) / 10;
 }
 
+function parseLabels(labelText) {
+  if (!labelText) return {};
+  return Object.fromEntries(Array.from(labelText.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)="((?:\\.|[^"])*)"/g)).map((match) => [match[1], match[2].replace(/\\"/g, '"')]));
+}
+
 function parseNodeMetrics(text) {
-  const metric = (name, labels) => {
-    const escaped = labels ? name + "{" + labels + "}" : name;
-    const line = text.split(/\n/).find((entry) => entry.startsWith(escaped + " "));
-    return line ? Number(line.split(/\s+/)[1]) : null;
+  const samples = text.split(/\n/).map((line) => {
+    const match = line.match(/^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{([^}]*)\})?\s+(-?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?)/i);
+    if (!match) return null;
+    return { name: match[1], labels: parseLabels(match[2]), value: Number(match[3]) };
+  }).filter(Boolean);
+
+  const metric = (name, labels = {}) => {
+    const sample = samples.find((entry) => entry.name === name && Object.entries(labels).every(([key, value]) => entry.labels[key] === value));
+    return sample ? sample.value : null;
   };
+
   const memTotal = metric("node_memory_MemTotal_bytes");
   const memAvailable = metric("node_memory_MemAvailable_bytes");
-  const rootTotal = metric("node_filesystem_size_bytes", 'device="/dev/root",fstype="ext4",mountpoint="/"') || metric("node_filesystem_size_bytes", 'mountpoint="/"');
-  const rootFree = metric("node_filesystem_avail_bytes", 'device="/dev/root",fstype="ext4",mountpoint="/"') || metric("node_filesystem_avail_bytes", 'mountpoint="/"');
+  const rootTotal = metric("node_filesystem_size_bytes", { mountpoint: "/" });
+  const rootFree = metric("node_filesystem_avail_bytes", { mountpoint: "/" });
+  const rootSample = samples.find((entry) => entry.name === "node_filesystem_size_bytes" && entry.labels.mountpoint === "/");
   const bootTime = metric("node_boot_time_seconds");
   return {
     memory: memTotal && memAvailable ? { totalGiB: bytesToGiB(memTotal), usedGiB: bytesToGiB(memTotal - memAvailable), usedPercent: Math.round(((memTotal - memAvailable) / memTotal) * 100) } : null,
-    disk: rootTotal && rootFree ? { mount: "/", totalGiB: bytesToGiB(rootTotal), usedGiB: bytesToGiB(rootTotal - rootFree), usedPercent: Math.round(((rootTotal - rootFree) / rootTotal) * 100) } : null,
+    disk: rootTotal && rootFree ? { mount: "/", device: rootSample && rootSample.labels.device, totalGiB: bytesToGiB(rootTotal), usedGiB: bytesToGiB(rootTotal - rootFree), usedPercent: Math.round(((rootTotal - rootFree) / rootTotal) * 100) } : null,
     uptimeSeconds: bootTime ? Math.max(0, Math.round(Date.now() / 1000 - bootTime)) : null
   };
 }

@@ -1541,6 +1541,65 @@ button, input { font: inherit; }
   background: transparent;
 }
 
+.trends-page {
+  display: grid;
+  gap: 24px;
+}
+
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.trend-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.trend-card h3 {
+  margin: 0 0 12px;
+}
+
+.trend-bars {
+  height: 86px;
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--soft-surface, rgba(15, 118, 110, 0.06));
+}
+
+.trend-bars span {
+  flex: 1;
+  min-width: 4px;
+  border-radius: 4px 4px 0 0;
+  background: #64748b;
+}
+
+.trend-bars span.good {
+  background: #16a34a;
+}
+
+.trend-bars span.warn {
+  background: #f59e0b;
+}
+
+.trend-bars span.bad {
+  background: #dc2626;
+}
+
+[data-theme="dark"] .trend-card,
+[data-theme="dark"] .trend-bars {
+  background: #111827;
+  border-color: #334155;
+}
+
 
 .service-hero-actions {
   display: flex;

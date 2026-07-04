@@ -46,6 +46,18 @@ After changing dashboard files:
 docker compose -f /home/apps/jaludash/docker-compose.yml up -d --build
 ```
 
+## GitHub Pulls On The Server
+
+GitHub no longer accepts account passwords for Git operations. For a public repository, first try clearing any cached credentials and pulling without a prompt:
+
+```bash
+cd /home/apps/jaludash
+git remote set-url origin https://github.com/JaLuBru/jaludash.git
+git -c credential.helper= pull origin main
+```
+
+If the server still asks for a password, use either a GitHub personal access token as the password or switch the remote to SSH with a deploy key.
+
 ## Current Scope
 
 This deployment is still read-only, but it now includes live reachability checks and host-health overviews when the configured endpoints are reachable.

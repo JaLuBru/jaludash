@@ -110,8 +110,7 @@ function normalizeName(value) {
 
 function readInventoryServiceNames() {
   const text = readInventoryText();
-  const matches = Array.from(text.matchAll(/{ id: "([^"]+)", name: "([^"]+)"([^
-]*?)}/g));
+  const matches = Array.from(text.matchAll(new RegExp('\\{ id: "([^\\"]+)", name: "([^\\"]+)"([^\\n]*?)\\}', "g")));
   const names = new Set();
   matches.forEach((match) => {
     names.add(normalizeName(match[1]));

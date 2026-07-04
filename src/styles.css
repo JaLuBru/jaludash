@@ -1161,3 +1161,105 @@ button, input { font: inherit; }
     justify-content: flex-start;
   }
 }
+
+
+/* Dark-mode contrast hardening */
+:root[data-theme="dark"] .tabs,
+:root[data-theme="dark"] .stats article,
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .host-card,
+:root[data-theme="dark"] .group-card,
+:root[data-theme="dark"] .roadmap-card,
+:root[data-theme="dark"] .service-hero,
+:root[data-theme="dark"] .service-controls,
+:root[data-theme="dark"] .directory-result,
+:root[data-theme="dark"] .empty,
+:root[data-theme="dark"] .roadmap-form,
+:root[data-theme="dark"] .wiki-hero,
+:root[data-theme="dark"] .wiki-main,
+:root[data-theme="dark"] .wiki-box,
+:root[data-theme="dark"] .host-health-card,
+:root[data-theme="dark"] .table-wrap,
+:root[data-theme="dark"] .wiki-markdown table {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .chips span,
+:root[data-theme="dark"] .group-meta span,
+:root[data-theme="dark"] .directory-stats article,
+:root[data-theme="dark"] .discovery-grid article,
+:root[data-theme="dark"] .attention,
+:root[data-theme="dark"] .note,
+:root[data-theme="dark"] .health-meter,
+:root[data-theme="dark"] .stack-list div,
+:root[data-theme="dark"] .wiki-markdown th,
+:root[data-theme="dark"] .code-detail summary {
+  background: #202733;
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .chips span,
+:root[data-theme="dark"] .group-meta span,
+:root[data-theme="dark"] .service-row span,
+:root[data-theme="dark"] .service-controls label,
+:root[data-theme="dark"] .search,
+:root[data-theme="dark"] .roadmap-form label,
+:root[data-theme="dark"] .result-line,
+:root[data-theme="dark"] .fact-list span,
+:root[data-theme="dark"] .source-file,
+:root[data-theme="dark"] .status-timestamp,
+:root[data-theme="dark"] .empty,
+:root[data-theme="dark"] .muted,
+:root[data-theme="dark"] .stats span,
+:root[data-theme="dark"] .attention p,
+:root[data-theme="dark"] .attention > span:last-child,
+:root[data-theme="dark"] .card-head p,
+:root[data-theme="dark"] .mini p,
+:root[data-theme="dark"] .note,
+:root[data-theme="dark"] .roadmap-card p,
+:root[data-theme="dark"] .roadmap-card > span:last-child,
+:root[data-theme="dark"] .stack-list span,
+:root[data-theme="dark"] .health-meter span,
+:root[data-theme="dark"] .health-meter small,
+:root[data-theme="dark"] .host-health-foot span,
+:root[data-theme="dark"] .host-health-foot code {
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .badge:not(.critical):not(.high):not(.medium):not(.low),
+:root[data-theme="dark"] .status-chip.unknown,
+:root[data-theme="dark"] .docs-badge.missing {
+  background: var(--soft);
+  color: #d8e1ec;
+}
+
+:root[data-theme="dark"] .directory-stats strong,
+:root[data-theme="dark"] .result-line strong,
+:root[data-theme="dark"] .fact-list strong,
+:root[data-theme="dark"] .wiki-markdown,
+:root[data-theme="dark"] .wiki-markdown h2,
+:root[data-theme="dark"] .wiki-markdown h3,
+:root[data-theme="dark"] .wiki-markdown h4,
+:root[data-theme="dark"] .wiki-markdown p,
+:root[data-theme="dark"] .wiki-markdown li,
+:root[data-theme="dark"] .wiki-markdown td,
+:root[data-theme="dark"] .wiki-markdown th,
+:root[data-theme="dark"] .service-title-button,
+:root[data-theme="dark"] .copy-code,
+:root[data-theme="dark"] .roadmap-actions button,
+:root[data-theme="dark"] .back-button {
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .copy-code,
+:root[data-theme="dark"] .roadmap-actions button,
+:root[data-theme="dark"] .back-button {
+  background: #202733;
+}
+
+:root[data-theme="dark"] .wiki-markdown pre,
+:root[data-theme="dark"] .code-detail pre {
+  background: #0b1016;
+  color: #edf2f7;
+}

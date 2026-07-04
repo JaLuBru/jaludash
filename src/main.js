@@ -33,7 +33,8 @@ const state = {
   serviceModalOpen: false,
   serviceDraft: null,
   serviceSaveError: "",
-  savingService: false
+  savingService: false,
+  deletingServiceId: ""
 };
 const app = document.querySelector("#app");
 const fencePattern = new RegExp(String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96) + "[\\s\\S]*?" + String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96), "g");
@@ -260,13 +261,21 @@ function findDiscoveredService(value) {
   return discoveredServiceOptions().find((container) => String(container.name || "").trim().toLowerCase() === selected || String(container.id || "").trim().toLowerCase() === selected) || null;
 }
 
-function applyDiscoveredService(container, form) {
-  if (!container || !form) return;
-  const draft = discoveryToDraft(container);
-  state.serviceDraft = draft;
+function applyDraftToForm(draft, form) {
+  if (!draft || !form) return;
+  state.serviceDraft = Object.assign({}, state.serviceDraft || {}, draft);
   ["name", "url", "checkUrl", "host", "category", "importance", "status", "purpose"].forEach((field) => {
     if (form.elements[field]) form.elements[field].value = draft[field] || "";
   });
+}
+
+function applyDiscoveredService(container, form) {
+  if (!container || !form) return;
+  applyDraftToForm(discoveryToDraft(container), form);
+}
+
+function editServiceDraft(service) {
+  return Object.assign(emptyServiceDraft(), service || {}, { discovery: service && service.discovery ? service.discovery : null });
 }
 
 function openServiceModal(draft) {
@@ -286,14 +295,16 @@ function closeServiceModal() {
 async function saveService(form) {
   const payload = Object.fromEntries(new FormData(form).entries());
   payload.discovery = state.serviceDraft && state.serviceDraft.discovery ? state.serviceDraft.discovery : null;
+  const editingId = state.serviceDraft && state.serviceDraft.id ? state.serviceDraft.id : "";
   state.savingService = true;
   state.serviceSaveError = "";
   render();
   try {
-    const response = await fetch("/api/services", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const response = await fetch(editingId ? "/api/services/" + encodeURIComponent(editingId) : "/api/services", { method: editingId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not save service.");
-    state.customServices.unshift(data.service);
+    if (editingId) state.customServices = state.customServices.map((service) => service.id === editingId ? data.service : service);
+    else state.customServices.unshift(data.service);
     state.serviceModalOpen = false;
     state.serviceDraft = null;
     state.savingService = false;
@@ -301,6 +312,26 @@ async function saveService(form) {
   } catch (error) {
     state.serviceSaveError = error.message;
     state.savingService = false;
+    render();
+  }
+}
+
+async function deleteService(id) {
+  const service = state.customServices.find((item) => item.id === id);
+  if (!service) return;
+  if (!window.confirm('Delete ' + service.name + '?')) return;
+  state.deletingServiceId = id;
+  render();
+  try {
+    const response = await fetch('/api/services/' + encodeURIComponent(id), { method: 'DELETE' });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not delete service.');
+    state.customServices = state.customServices.filter((item) => item.id !== id);
+    state.deletingServiceId = '';
+    refreshLiveDataAndRender();
+  } catch (error) {
+    state.serviceSaveError = error.message;
+    state.deletingServiceId = '';
     render();
   }
 }
@@ -316,7 +347,7 @@ function serviceModal() {
   const discovered = discoveredServiceOptions();
   const discoveredList = discovered.length ? '<datalist id="discovered-service-options">' + discovered.map((container) => '<option value="' + escapeHtml(container.name || container.id) + '">' + escapeHtml(container.image || container.status || 'Discovered service') + '</option>').join('') + '</datalist><p class="field-hint">Pick a discovered service here to prefill the form.</p>' : '';
   const nameList = discovered.length ? ' list="discovered-service-options"' : '';
-  return '<div class="modal-backdrop"><form class="service-modal" data-service-form="true"><div class="card-head"><div><p class="eyebrow">Add Service</p><h2>Service details</h2></div><button type="button" class="icon-close" data-close-service-modal="true">Close</button></div>' + aiNote + '<label><span>Name</span><input name="name" data-service-name-input="true" required maxlength="120"' + nameList + ' value="' + escapeHtml(draft.name) + '" /></label>' + discoveredList + '<label><span>URL</span><input name="url" maxlength="300" placeholder="http://192.168.0.191:1234" value="' + escapeHtml(draft.url) + '" /></label><label><span>Check URL</span><input name="checkUrl" maxlength="300" value="' + escapeHtml(draft.checkUrl || draft.url || '') + '" /></label><div class="form-row"><label><span>Host</span><select name="host">' + hostOptions + '</select></label><label><span>Category</span><select name="category">' + categoryOptions + '</select></label></div><div class="form-row"><label><span>Importance</span><select name="importance">' + importanceOptions + '</select></label><label><span>Status</span><select name="status">' + statusOptions + '</select></label></div><label><span>Purpose</span><textarea name="purpose" rows="4" maxlength="260">' + escapeHtml(draft.purpose) + '</textarea></label><div class="modal-actions"><button class="primary-action" type="submit" ' + (state.savingService ? 'disabled' : '') + '>' + (state.savingService ? 'Saving...' : 'Save service') + '</button><button type="button" data-close-service-modal="true">Cancel</button></div>' + (state.serviceSaveError ? '<p class="form-error">' + escapeHtml(state.serviceSaveError) + '</p>' : '') + '</form></div>';
+  return '<div class="modal-backdrop"><form class="service-modal" data-service-form="true"><div class="card-head"><div><p class="eyebrow">' + (draft.id ? 'Edit Service' : 'Add Service') + '</p><h2>Service details</h2></div><button type="button" class="icon-close" data-close-service-modal="true">Close</button></div>' + aiNote + '<label><span>Name</span><input name="name" data-service-name-input="true" required maxlength="120"' + nameList + ' value="' + escapeHtml(draft.name) + '" /></label>' + discoveredList + '<label><span>URL</span><input name="url" maxlength="300" placeholder="http://192.168.0.191:1234" value="' + escapeHtml(draft.url) + '" /></label><label><span>Check URL</span><input name="checkUrl" maxlength="300" value="' + escapeHtml(draft.checkUrl || draft.url || '') + '" /></label><div class="form-row"><label><span>Host</span><select name="host">' + hostOptions + '</select></label><label><span>Category</span><select name="category">' + categoryOptions + '</select></label></div><div class="form-row"><label><span>Importance</span><select name="importance">' + importanceOptions + '</select></label><label><span>Status</span><select name="status">' + statusOptions + '</select></label></div><label><span>Purpose</span><textarea name="purpose" rows="4" maxlength="260">' + escapeHtml(draft.purpose) + '</textarea></label><div class="modal-actions"><button class="primary-action" type="submit" ' + (state.savingService ? 'disabled' : '') + '>' + (state.savingService ? 'Saving...' : (draft.id ? 'Save changes' : 'Save service')) + '</button><button type="button" data-close-service-modal="true">Cancel</button></div>' + (state.serviceSaveError ? '<p class="form-error">' + escapeHtml(state.serviceSaveError) + '</p>' : '') + '</form></div>';
 }
 
 function wireServiceModal() {
@@ -324,7 +355,11 @@ function wireServiceModal() {
   const form = document.querySelector('[data-service-form]');
   if (form) {
     const nameInput = form.querySelector('[data-service-name-input]');
-    if (nameInput) nameInput.addEventListener('change', () => applyDiscoveredService(findDiscoveredService(nameInput.value), form));
+    if (nameInput) {
+      const maybePrefill = () => applyDiscoveredService(findDiscoveredService(nameInput.value), form);
+      nameInput.addEventListener('input', maybePrefill);
+      nameInput.addEventListener('change', maybePrefill);
+    }
     form.addEventListener('submit', (event) => { event.preventDefault(); saveService(form); });
   }
 }
@@ -536,6 +571,11 @@ function serviceDirectory() {
   document.querySelectorAll('[data-filter]').forEach((select) => select.addEventListener('change', (event) => { state[event.target.dataset.filter] = event.target.value; serviceDirectory(); }));
   document.querySelectorAll('[data-focus]').forEach((button) => button.addEventListener('click', () => { state.focus = button.dataset.focus; serviceDirectory(); }));
   document.querySelectorAll('[data-service-id]').forEach((button) => button.addEventListener('click', () => { state.selectedServiceId = button.dataset.serviceId; state.view = 'service-detail'; render(); }));
+  document.querySelectorAll('[data-edit-service]').forEach((button) => button.addEventListener('click', () => {
+    const service = state.customServices.find((item) => item.id === button.dataset.editService);
+    if (service) openServiceModal(editServiceDraft(service));
+  }));
+  document.querySelectorAll('[data-delete-service]').forEach((button) => button.addEventListener('click', () => deleteService(button.dataset.deleteService)));
   const addButton = document.querySelector('[data-add-service]');
   if (addButton) addButton.addEventListener('click', () => openServiceModal(emptyServiceDraft()));
 }
@@ -553,7 +593,9 @@ function serviceRow(service, group) {
   const url = service.url ? '<code>' + escapeHtml(service.url.replace(/^https?:\/\//, '')) + '</code>' : '<code>add preferred URL later</code>';
   const docsBadge = serviceDocs[service.id] ? '<span class="docs-badge">Docs</span>' : '<span class="docs-badge missing">No docs</span>';
   const contextualBadges = [state.focus === 'needs-docs' ? docsBadge : '', state.focus === 'important' ? badge(service.importance, service.importance) : '', state.focus === 'needs-docs' ? issueHtml : ''].join('');
-  return '<div class="service-row service-row-expanded"><div class="service-name"><div class="service-title-line"><button class="service-title-button" type="button" data-service-id="' + escapeHtml(service.id) + '">' + escapeHtml(service.name) + '</button>' + statusChip(service.id) + '</div><span>' + escapeHtml(details) + '</span></div><div class="service-url">' + url + '</div><div class="service-context-badges">' + contextualBadges + '</div>' + openLink(service) + '</div>';
+  const editable = service.source === 'dashboard' || group.id === 'dashboard-added';
+  const serviceActions = editable ? '<div class="service-edit-actions"><button type="button" data-edit-service="' + escapeHtml(service.id) + '">Edit</button><button type="button" class="danger" data-delete-service="' + escapeHtml(service.id) + '">' + (state.deletingServiceId === service.id ? 'Deleting...' : 'Delete') + '</button></div>' : '';
+  return '<div class="service-row service-row-expanded"><div class="service-name"><div class="service-title-line"><button class="service-title-button" type="button" data-service-id="' + escapeHtml(service.id) + '">' + escapeHtml(service.name) + '</button>' + statusChip(service.id) + '</div><span>' + escapeHtml(details) + '</span></div><div class="service-url">' + url + '</div><div class="service-context-badges">' + contextualBadges + '</div><div class="service-row-actions">' + openLink(service) + serviceActions + '</div></div>';
 }
 
 function cleanObsidianText(value) {

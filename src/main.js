@@ -30,6 +30,12 @@ const state = {
   discoveryLoading: false,
   discoveryError: "",
   customServices: [],
+  customGroups: [],
+  groupModalOpen: false,
+  groupDraft: null,
+  groupSaveError: "",
+  savingGroup: false,
+  deletingGroupId: "",
   serviceModalOpen: false,
   serviceDraft: null,
   serviceSaveError: "",
@@ -230,6 +236,17 @@ async function loadCustomServices() {
   }
 }
 
+async function loadCustomGroups() {
+  try {
+    const response = await fetch("/api/groups");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Group API unavailable");
+    state.customGroups = Array.isArray(data.groups) ? data.groups : [];
+  } catch (error) {
+    state.groupSaveError = error.message;
+  }
+}
+
 function discoveryToDraft(container) {
   const port = (container.ports || []).find((item) => item.publicPort) || (container.ports || [])[0] || {};
   const publicPort = port.publicPort || port.privatePort || "";
@@ -324,7 +341,7 @@ async function saveService(form) {
 }
 
 async function deleteService(id) {
-  const service = state.customServices.find((item) => item.id === id);
+  const service = services().find((item) => item.id === id);
   if (!service) return;
   if (!window.confirm('Delete ' + service.name + '?')) return;
   state.deletingServiceId = id;
@@ -333,7 +350,9 @@ async function deleteService(id) {
     const response = await fetch('/api/services/' + encodeURIComponent(id), { method: 'DELETE' });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Could not delete service.');
-    state.customServices = state.customServices.filter((item) => item.id !== id);
+    const index = state.customServices.findIndex((item) => item.id === id || item.overrideOf === id);
+    if (index === -1 && !service.dashboardAdded) state.customServices.unshift({ id, overrideOf: id, source: 'dashboard', deleted: true });
+    else state.customServices = state.customServices.filter((item) => item.id !== id && item.overrideOf !== id);
     state.deletingServiceId = '';
     refreshLiveDataAndRender();
   } catch (error) {
@@ -354,7 +373,7 @@ function serviceModal() {
   const discovered = discoveredServiceOptions();
   const discoveredList = discovered.length ? '<datalist id="discovered-service-options">' + discovered.map((container) => '<option value="' + escapeHtml(container.name || container.id) + '">' + escapeHtml(container.image || container.status || 'Discovered service') + '</option>').join('') + '</datalist><p class="field-hint">Pick a discovered service here to prefill the form.</p>' : '';
   const nameList = discovered.length ? ' list="discovered-service-options"' : '';
-  return '<div class="modal-backdrop"><form class="service-modal" data-service-form="true"><div class="card-head"><div><p class="eyebrow">' + (draft.id ? 'Edit Service' : 'Add Service') + '</p><h2>Service details</h2></div><button type="button" class="icon-close" data-close-service-modal="true">Close</button></div>' + aiNote + '<label><span>Name</span><input name="name" data-service-name-input="true" required maxlength="120"' + nameList + ' value="' + escapeHtml(draft.name) + '" /></label>' + discoveredList + '<label><span>URL</span><input name="url" maxlength="300" placeholder="http://192.168.0.191:1234" value="' + escapeHtml(draft.url) + '" /></label><label><span>Check URL</span><input name="checkUrl" maxlength="300" value="' + escapeHtml(draft.checkUrl || draft.url || '') + '" /></label><div class="form-row"><label><span>Host</span><select name="host">' + hostOptions + '</select></label><label><span>Category</span><select name="category">' + categoryOptions + '</select></label></div><div class="form-row"><label><span>Importance</span><select name="importance">' + importanceOptions + '</select></label><label><span>Status</span><select name="status">' + statusOptions + '</select></label></div><label><span>Purpose</span><textarea name="purpose" rows="4" maxlength="260">' + escapeHtml(draft.purpose) + '</textarea></label><div class="modal-actions"><button class="primary-action" type="submit" ' + (state.savingService ? 'disabled' : '') + '>' + (state.savingService ? 'Saving...' : (draft.id ? 'Save changes' : 'Save service')) + '</button><button type="button" data-close-service-modal="true">Cancel</button></div>' + (state.serviceSaveError ? '<p class="form-error">' + escapeHtml(state.serviceSaveError) + '</p>' : '') + '</form></div>';
+  return '<div class="modal-backdrop"><form class="service-modal" data-service-form="true"><div class="card-head"><div><p class="eyebrow">' + (draft.id ? 'Edit Service' : 'Add Service') + '</p><h2>Service details</h2></div><button type="button" class="icon-close" data-close-service-modal="true">Close</button></div>' + aiNote + '<label><span>Name</span><input name="name" data-service-name-input="true" required maxlength="120"' + nameList + ' value="' + escapeHtml(draft.name) + '" /></label>' + discoveredList + '<label><span>URL</span><input name="url" maxlength="300" placeholder="http://192.168.0.191:1234" value="' + escapeHtml(draft.url) + '" /></label><label><span>Check URL</span><input name="checkUrl" maxlength="300" value="' + escapeHtml(draft.checkUrl || draft.url || '') + '" /></label><div class="form-row"><label><span>Host</span><select name="host">' + hostOptions + '</select></label><label><span>Category</span><select name="category">' + categoryOptions + '</select></label></div><div class="form-row"><label><span>Importance</span><select name="importance">' + importanceOptions + '</select></label><label><span>Status</span><select name="status">' + statusOptions + '</select></label></div><label><span>Purpose</span><textarea name="purpose" rows="4" maxlength="260">' + escapeHtml(draft.purpose) + '</textarea></label><div class="modal-actions"><button class="primary-action" type="submit" ' + (state.savingService ? 'disabled' : '') + '>' + (state.savingService ? 'Saving...' : (draft.id ? 'Save changes' : 'Save service')) + '</button><button type="button" data-close-service-modal="true">Cancel</button></div>' + (draft.id ? '<div class="modal-danger-zone"><button type="button" class="danger" data-delete-service-from-modal="' + escapeHtml(draft.id) + '">Delete service</button></div>' : '') + (state.serviceSaveError ? '<p class="form-error">' + escapeHtml(state.serviceSaveError) + '</p>' : '') + '</form></div>';
 }
 
 function wireServiceModal() {
@@ -367,7 +386,96 @@ function wireServiceModal() {
       nameInput.addEventListener('input', maybePrefill);
       nameInput.addEventListener('change', maybePrefill);
     }
+    const deleteButton = form.querySelector('[data-delete-service-from-modal]');
+    if (deleteButton) deleteButton.addEventListener('click', () => deleteService(deleteButton.dataset.deleteServiceFromModal));
     form.addEventListener('submit', (event) => { event.preventDefault(); saveService(form); });
+  }
+}
+
+function emptyGroupDraft() {
+  return { name: "", host: "docker-lxc", category: "apps", importance: "low", purpose: "", notes: "" };
+}
+
+function editGroupDraft(group) {
+  return Object.assign(emptyGroupDraft(), group || {}, { notes: Array.isArray(group && group.notes) ? group.notes.join("\n") : (group && group.notes) || "" });
+}
+
+function openGroupModal(draft) {
+  state.groupDraft = Object.assign(emptyGroupDraft(), draft || {});
+  state.groupModalOpen = true;
+  state.groupSaveError = "";
+  render();
+}
+
+function closeGroupModal() {
+  state.groupModalOpen = false;
+  state.groupDraft = null;
+  state.groupSaveError = "";
+  render();
+}
+
+async function saveGroup(form) {
+  const payload = Object.fromEntries(new FormData(form).entries());
+  const editingId = state.groupDraft && state.groupDraft.id ? state.groupDraft.id : "";
+  state.savingGroup = true;
+  state.groupSaveError = "";
+  render();
+  try {
+    const response = await fetch(editingId ? "/api/groups/" + encodeURIComponent(editingId) : "/api/groups", { method: editingId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not save card.");
+    const index = state.customGroups.findIndex((group) => group.id === editingId || group.overrideOf === editingId);
+    if (editingId && index !== -1) state.customGroups = state.customGroups.map((group, groupIndex) => groupIndex === index ? data.group : group);
+    else state.customGroups.unshift(data.group);
+    state.groupModalOpen = false;
+    state.groupDraft = null;
+    state.savingGroup = false;
+    render();
+  } catch (error) {
+    state.groupSaveError = error.message;
+    state.savingGroup = false;
+    render();
+  }
+}
+
+async function deleteGroup(id) {
+  const group = serviceGroups().find((item) => item.id === id);
+  if (!group) return;
+  if (!window.confirm('Delete ' + group.name + '? Services inside it will be hidden until moved or restored.')) return;
+  state.deletingGroupId = id;
+  render();
+  try {
+    const response = await fetch('/api/groups/' + encodeURIComponent(id), { method: 'DELETE' });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not delete card.');
+    const index = state.customGroups.findIndex((item) => item.id === id || item.overrideOf === id);
+    if (index === -1) state.customGroups.unshift({ id, overrideOf: id, source: 'dashboard', deleted: true });
+    else state.customGroups = state.customGroups.map((item, itemIndex) => itemIndex === index ? Object.assign({}, item, { deleted: true }) : item);
+    state.deletingGroupId = "";
+    closeGroupModal();
+  } catch (error) {
+    state.groupSaveError = error.message;
+    state.deletingGroupId = "";
+    render();
+  }
+}
+
+function groupModal() {
+  if (!state.groupModalOpen) return "";
+  const draft = state.groupDraft || emptyGroupDraft();
+  const hostOptions = ["docker-lxc", "serverpi", "optipi", "plex-lxc", "pihole-lxc"].map((host) => '<option value="' + host + '" ' + (draft.host === host ? 'selected' : '') + '>' + escapeHtml(hostName(host)) + '</option>').join('');
+  const categoryOptions = ["apps", "media", "management", "network", "home", "other"].map((category) => '<option value="' + category + '" ' + (draft.category === category ? 'selected' : '') + '>' + escapeHtml(category) + '</option>').join('');
+  const importanceOptions = ["low", "medium", "high", "critical"].map((importance) => '<option value="' + importance + '" ' + (draft.importance === importance ? 'selected' : '') + '>' + escapeHtml(importance) + '</option>').join('');
+  return '<div class="modal-backdrop"><form class="service-modal" data-group-form="true"><div class="card-head"><div><p class="eyebrow">' + (draft.id ? 'Edit Card' : 'Add Card') + '</p><h2>Service card</h2></div><button type="button" class="icon-close" data-close-group-modal="true">Close</button></div><label><span>Name</span><input name="name" required maxlength="120" value="' + escapeHtml(draft.name) + '" /></label><div class="form-row"><label><span>Host</span><select name="host">' + hostOptions + '</select></label><label><span>Category</span><select name="category">' + categoryOptions + '</select></label></div><label><span>Importance</span><select name="importance">' + importanceOptions + '</select></label><label><span>Purpose</span><textarea name="purpose" rows="3" maxlength="260">' + escapeHtml(draft.purpose) + '</textarea></label><label><span>Notes</span><textarea name="notes" rows="3" maxlength="500">' + escapeHtml(draft.notes || '') + '</textarea></label><div class="modal-actions"><button class="primary-action" type="submit" ' + (state.savingGroup ? 'disabled' : '') + '>' + (state.savingGroup ? 'Saving...' : (draft.id ? 'Save changes' : 'Save card')) + '</button><button type="button" data-close-group-modal="true">Cancel</button></div>' + (draft.id ? '<div class="modal-danger-zone"><button type="button" class="danger" data-delete-group-from-modal="' + escapeHtml(draft.id) + '">Delete card</button></div>' : '') + (state.groupSaveError ? '<p class="form-error">' + escapeHtml(state.groupSaveError) + '</p>' : '') + '</form></div>';
+}
+
+function wireGroupModal() {
+  document.querySelectorAll('[data-close-group-modal]').forEach((button) => button.addEventListener('click', closeGroupModal));
+  const form = document.querySelector('[data-group-form]');
+  if (form) {
+    const deleteButton = form.querySelector('[data-delete-group-from-modal]');
+    if (deleteButton) deleteButton.addEventListener('click', () => deleteGroup(deleteButton.dataset.deleteGroupFromModal));
+    form.addEventListener('submit', (event) => { event.preventDefault(); saveGroup(form); });
   }
 }
 
@@ -453,7 +561,20 @@ function parentHostId(id) {
 }
 
 function inventoryServiceIds() {
-  return new Set(inventory.serviceGroups.flatMap((group) => group.services.map((service) => service.id)));
+  return new Set(serviceGroups().flatMap((group) => (group.services || []).map((service) => service.id)));
+}
+
+function groupOverrides() {
+  return new Map(state.customGroups.filter((group) => group.overrideOf).map((group) => [group.overrideOf, group]));
+}
+
+function dashboardGroups() {
+  return state.customGroups.filter((group) => !group.overrideOf && !group.deleted);
+}
+
+function serviceGroups() {
+  const overrides = groupOverrides();
+  return inventory.serviceGroups.map((group) => Object.assign({}, group, overrides.get(group.id) || {}, { id: group.id })).filter((group) => !group.deleted).concat(dashboardGroups());
 }
 
 function serviceOverrides() {
@@ -463,15 +584,15 @@ function serviceOverrides() {
 
 function dashboardAddedServices() {
   const ids = inventoryServiceIds();
-  return state.customServices.filter((service) => !service.overrideOf && !ids.has(service.id));
+  return state.customServices.filter((service) => !service.overrideOf && !ids.has(service.id) && !service.deleted);
 }
 
 function matchingServiceGroup(service) {
   const serviceHost = service.host || "docker-lxc";
   const serviceParent = parentHostId(serviceHost);
-  return inventory.serviceGroups.find((group) => group.category === service.category && (group.host === serviceHost || parentHostId(group.host) === serviceParent)) ||
-    inventory.serviceGroups.find((group) => group.category === service.category) ||
-    inventory.serviceGroups.find((group) => group.host === serviceHost || parentHostId(group.host) === serviceParent) ||
+  return serviceGroups().find((group) => group.category === service.category && (group.host === serviceHost || parentHostId(group.host) === serviceParent)) ||
+    serviceGroups().find((group) => group.category === service.category) ||
+    serviceGroups().find((group) => group.host === serviceHost || parentHostId(group.host) === serviceParent) ||
     null;
 }
 
@@ -489,7 +610,7 @@ function decorateService(service, group, flags) {
 
 function services() {
   const overrides = serviceOverrides();
-  const inventoryServices = inventory.serviceGroups.flatMap((group) => group.services.map((service) => {
+  const inventoryServices = serviceGroups().flatMap((group) => (group.services || []).map((service) => {
     const override = overrides.get(service.id);
     return decorateService(Object.assign({}, service, override || {}, { id: service.id }), group, { dashboardOverride: Boolean(override) });
   }));
@@ -532,9 +653,9 @@ function overview() {
 
 function hostCard(host) {
   const units = inventory.computeUnits.filter((unit) => unit.host === host.id);
-  const groups = inventory.serviceGroups.filter((group) => group.host === host.id || units.some((unit) => unit.id === group.host));
+  const groups = serviceGroups().filter((group) => group.host === host.id || units.some((unit) => unit.id === group.host));
   const computeHtml = units.map((unit) => '<span>' + escapeHtml(unit.name) + ' <small>' + escapeHtml(unit.type) + '</small></span>').join('') || '<span>Docker on host</span>';
-  const groupsHtml = groups.map((group) => '<div><strong>' + escapeHtml(group.name) + '</strong><span>' + group.services.length + ' services on ' + escapeHtml(hostName(group.host)) + '</span></div>').join('');
+  const groupsHtml = groups.map((group) => '<div><strong>' + escapeHtml(group.name) + '</strong><span>' + ((group.services || []).length) + ' services on ' + escapeHtml(hostName(group.host)) + '</span></div>').join('');
   return '<article class="host-card"><div class="card-head"><div><h3>' + escapeHtml(host.name) + '</h3><p>' + escapeHtml(host.role) + '</p></div>' + badge(host.importance, host.importance) + '</div><div class="chips"><span>' + escapeHtml(host.type) + '</span>' + host.addresses.map((address) => '<span>' + escapeHtml(address) + '</span>').join('') + '</div><div class="mini"><h4>Hardware</h4><p>' + escapeHtml(host.hardware.join(' / ')) + '</p></div><div class="mini"><h4>Compute</h4><div class="chips">' + computeHtml + '</div></div><div class="mini"><h4>Stacks</h4><div class="stack-list">' + groupsHtml + '</div></div></article>';
 }
 
@@ -559,7 +680,7 @@ function matchesFocus(service) {
 function visibleGroups() {
   const query = state.query.trim().toLowerCase();
   const allServices = services();
-  const groups = inventory.serviceGroups.map((group) => {
+  const groups = serviceGroups().map((group) => {
     const groupParentHost = parentHostId(group.host);
     const groupText = [group.name, group.category, group.purpose, hostName(group.host), hostName(groupParentHost)].join(' ').toLowerCase();
     const groupMatchesQuery = !query || groupText.includes(query);
@@ -570,7 +691,7 @@ function visibleGroups() {
       const serviceText = [service.name, service.importance, service.status, service.url || '', group.name, group.category, hostName(service.host || group.host)].join(' ').toLowerCase();
       return (groupMatchesQuery || serviceText.includes(query)) && matchesFocus(service);
     });
-    if (matchedServices.length) return Object.assign({}, group, { services: matchedServices });
+    if (matchedServices.length || (!query && state.focus === 'all' && group.source === 'dashboard')) return Object.assign({}, group, { services: matchedServices });
     return null;
   }).filter(Boolean);
   const fallbackServices = allServices.filter((service) => service.groupId === "dashboard-added" && matchesFocus(service));
@@ -584,7 +705,7 @@ function directoryStats() {
 }
 
 function uniqueCategories() {
-  return Array.from(new Set(inventory.serviceGroups.map((group) => group.category))).sort();
+  return Array.from(new Set(serviceGroups().map((group) => group.category))).sort();
 }
 
 function serviceDirectory() {
@@ -593,7 +714,7 @@ function serviceDirectory() {
   const filterButtons = [['all', 'All'], ['openable', 'Has URL'], ['needs-docs', 'Needs Docs'], ['important', 'High/Critical'], ['planned', 'Planned']].map(([id, label]) => '<button class="' + (state.focus === id ? 'active' : '') + '" data-focus="' + id + '">' + label + '</button>').join('');
   const hostOptions = ['<option value="all">All hosts</option>'].concat(inventory.hosts.map((host) => '<option value="' + host.id + '" ' + (state.host === host.id ? 'selected' : '') + '>' + host.shortName + '</option>')).join('');
   const categoryOptions = ['<option value="all">All categories</option>'].concat(uniqueCategories().map((category) => '<option value="' + category + '" ' + (state.category === category ? 'selected' : '') + '>' + category + '</option>')).join('');
-  shell('<main class="page service-page"><section class="service-hero"><div><h2>Service directory</h2><p class="status-timestamp">' + (state.statusCheckedAt ? 'Last checked ' + new Date(state.statusCheckedAt).toLocaleTimeString() : 'Status not checked yet') + (state.statusError ? ' / ' + state.statusError : '') + '</p><button class="primary-action inline-action" type="button" data-add-service="true">Add Service</button></div><div class="directory-stats"><article><span>Total</span><strong>' + stats.total + '</strong></article><article><span>Openable</span><strong>' + stats.openable + '</strong></article><article><span>No URL</span><strong>' + stats.missingUrl + '</strong></article><article><span>Important</span><strong>' + stats.important + '</strong></article></div></section><section class="service-controls"><label class="search"><span>Search</span><input type="search" value="' + escapeHtml(state.query) + '" placeholder="Try Plex, network, serverpi..." /></label><label><span>Host</span><select data-filter="host">' + hostOptions + '</select></label><label><span>Category</span><select data-filter="category">' + categoryOptions + '</select></label><div class="quick-filters" aria-label="Quick service filters">' + filterButtons + '</div></section><section class="directory-result"><div class="result-line"><strong>' + groups.reduce((sum, group) => sum + group.services.length, 0) + '</strong><span> matching services in </span><strong>' + groups.length + '</strong><span> stacks</span></div></section><section class="group-grid service-groups">' + (groups.map(groupCard).join('') || '<div class="empty">No services match these filters.</div>') + '</section></main>');
+  shell('<main class="page service-page"><section class="service-hero"><div><h2>Service directory</h2><p class="status-timestamp">' + (state.statusCheckedAt ? 'Last checked ' + new Date(state.statusCheckedAt).toLocaleTimeString() : 'Status not checked yet') + (state.statusError ? ' / ' + state.statusError : '') + '</p><div class="service-hero-actions"><button class="primary-action inline-action" type="button" data-add-service="true">Add Service</button><button class="theme-toggle inline-action" type="button" data-add-group="true">Add Card</button></div></div><div class="directory-stats"><article><span>Total</span><strong>' + stats.total + '</strong></article><article><span>Openable</span><strong>' + stats.openable + '</strong></article><article><span>No URL</span><strong>' + stats.missingUrl + '</strong></article><article><span>Important</span><strong>' + stats.important + '</strong></article></div></section><section class="service-controls"><label class="search"><span>Search</span><input type="search" value="' + escapeHtml(state.query) + '" placeholder="Try Plex, network, serverpi..." /></label><label><span>Host</span><select data-filter="host">' + hostOptions + '</select></label><label><span>Category</span><select data-filter="category">' + categoryOptions + '</select></label><div class="quick-filters" aria-label="Quick service filters">' + filterButtons + '</div></section><section class="directory-result"><div class="result-line"><strong>' + groups.reduce((sum, group) => sum + ((group.services || []).length), 0) + '</strong><span> matching services in </span><strong>' + groups.length + '</strong><span> stacks</span></div></section><section class="group-grid service-groups">' + (groups.map(groupCard).join('') || '<div class="empty">No services match these filters.</div>') + '</section></main>');
   const input = document.querySelector("input[type='search']");
   if (input) { input.addEventListener('input', (event) => { state.query = event.target.value; serviceDirectory(); }); input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
   document.querySelectorAll('[data-filter]').forEach((select) => select.addEventListener('change', (event) => { state[event.target.dataset.filter] = event.target.value; serviceDirectory(); }));
@@ -604,14 +725,21 @@ function serviceDirectory() {
     if (service) openServiceModal(editServiceDraft(service));
   }));
   document.querySelectorAll('[data-delete-service]').forEach((button) => button.addEventListener('click', () => deleteService(button.dataset.deleteService)));
+  document.querySelectorAll('[data-edit-group]').forEach((button) => button.addEventListener('click', () => {
+    const group = serviceGroups().find((item) => item.id === button.dataset.editGroup);
+    if (group) openGroupModal(editGroupDraft(group));
+  }));
   const addButton = document.querySelector('[data-add-service]');
   if (addButton) addButton.addEventListener('click', () => openServiceModal(emptyServiceDraft()));
+  const addGroupButton = document.querySelector('[data-add-group]');
+  if (addGroupButton) addGroupButton.addEventListener('click', () => openGroupModal(emptyGroupDraft()));
 }
 
 function groupCard(group) {
-  const serviceRows = group.services.sort((a, b) => rank[b.importance] - rank[a.importance] || a.name.localeCompare(b.name)).map((service) => serviceRow(service, group)).join('');
+  const shownServices = group.services || [];
+  const serviceRows = shownServices.sort((a, b) => rank[b.importance] - rank[a.importance] || a.name.localeCompare(b.name)).map((service) => serviceRow(service, group)).join('');
   const note = group.notes ? '<p class="note">' + escapeHtml(group.notes.join(' ')) + '</p>' : '';
-  return '<article class="group-card enhanced-group"><div class="card-head"><div><h3>' + escapeHtml(group.name) + '</h3><p>' + escapeHtml(group.purpose) + '</p></div><div class="badge-row">' + badge(group.category) + '</div></div><div class="group-meta"><span>Runs on ' + escapeHtml(hostName(group.host)) + '</span><span>Physical host: ' + escapeHtml(hostName(parentHostId(group.host))) + '</span><span>' + group.services.length + ' shown</span></div><div class="service-table enhanced-table">' + serviceRows + '</div>' + note + '</article>';
+  return '<article class="group-card enhanced-group"><div class="card-head"><div><h3>' + escapeHtml(group.name) + '</h3><p>' + escapeHtml(group.purpose) + '</p></div><div class="badge-row">' + badge(group.category) + '<button class="mini-edit" type="button" data-edit-group="' + escapeHtml(group.id) + '">Edit</button></div></div><div class="group-meta"><span>Runs on ' + escapeHtml(hostName(group.host)) + '</span><span>Physical host: ' + escapeHtml(hostName(parentHostId(group.host))) + '</span><span>' + group.services.length + ' shown</span></div><div class="service-table enhanced-table">' + serviceRows + '</div>' + note + '</article>';
 }
 
 function serviceRow(service, group) {
@@ -622,8 +750,8 @@ function serviceRow(service, group) {
   const contextualBadges = [state.focus === 'needs-docs' ? docsBadge : '', state.focus === 'important' ? badge(service.importance, service.importance) : '', state.focus === 'needs-docs' ? issueHtml : ''].join('');
   const editable = true;
   const statusLabel = service.status && service.status !== 'documented' ? '<span>' + escapeHtml(service.status) + '</span>' : '';
-  const serviceActions = editable ? '<div class="service-edit-actions"><button type="button" data-edit-service="' + escapeHtml(service.id) + '">Edit</button>' + (service.dashboardAdded ? '<button type="button" class="danger" data-delete-service="' + escapeHtml(service.id) + '">' + (state.deletingServiceId === service.id ? 'Deleting...' : 'Delete') + '</button>' : '') + '</div>' : '';
-  return '<div class="service-row service-row-expanded"><div class="service-name"><div class="service-title-line"><button class="service-title-button" type="button" data-service-id="' + escapeHtml(service.id) + '">' + escapeHtml(service.name) + '</button>' + statusChip(service.id) + '</div><span>' + [group.category, hostName(group.host)].filter(Boolean).map(escapeHtml).join(' / ') + '</span></div><div class="service-url">' + url + '</div><div class="service-context-badges">' + statusLabel + contextualBadges + '</div><div class="service-row-actions">' + openLink(service) + serviceActions + '</div></div>';
+  const serviceActions = editable ? '<div class="service-edit-actions"><button type="button" data-edit-service="' + escapeHtml(service.id) + '">Edit</button>' + openLink(service) + '</div>' : openLink(service);
+  return '<div class="service-row service-row-expanded"><div class="service-name"><div class="service-title-line"><button class="service-title-button" type="button" data-service-id="' + escapeHtml(service.id) + '">' + escapeHtml(service.name) + '</button>' + statusChip(service.id) + '</div><span>' + [group.category, hostName(group.host)].filter(Boolean).map(escapeHtml).join(' / ') + '</span></div><div class="service-url">' + url + '</div><div class="service-context-badges">' + statusLabel + contextualBadges + '</div><div class="service-row-actions">' + serviceActions + '</div></div>';
 }
 
 function cleanObsidianText(value) {
@@ -787,13 +915,14 @@ function renderContent() {
 
 function render() {
   renderContent();
-  app.insertAdjacentHTML("beforeend", serviceModal());
+  app.insertAdjacentHTML("beforeend", serviceModal() + groupModal());
   wireServiceModal();
+  wireGroupModal();
 }
 
 render();
 loadServiceDocs().finally(render);
-loadCustomServices().finally(render);
+Promise.all([loadCustomServices(), loadCustomGroups()]).finally(render);
 loadRoadmapItems().finally(render);
 loadClientInfo().finally(render);
 refreshLiveDataAndRender();

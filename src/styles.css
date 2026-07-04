@@ -1540,3 +1540,49 @@ button, input { font: inherit; }
   border: 0;
   background: transparent;
 }
+
+
+.service-hero-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mini-edit {
+  min-height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: var(--surface-strong, var(--surface));
+  color: var(--text);
+  cursor: pointer;
+}
+
+.modal-danger-zone {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-start;
+}
+
+.modal-danger-zone .danger {
+  min-height: 38px;
+  border: 1px solid rgba(185, 28, 28, 0.35);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--danger, #b91c1c);
+  cursor: pointer;
+}
+
+[data-theme="dark"] .mini-edit {
+  background: #111827;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .modal-danger-zone .danger {
+  color: #fca5a5;
+  border-color: rgba(252, 165, 165, 0.35);
+}

@@ -11,6 +11,7 @@ const host = process.env.HOST || "0.0.0.0";
 const dataDir = path.join(root, "data");
 const roadmapFile = path.join(dataDir, "roadmap-items.json");
 const customServicesFile = path.join(dataDir, "custom-services.json");
+const customGroupsFile = path.join(dataDir, "custom-groups.json");
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -50,6 +51,19 @@ function saveCustomServices(items) {
   fs.writeFileSync(customServicesFile, JSON.stringify(items, null, 2) + "\n", "utf8");
 }
 
+function readCustomGroups() {
+  try {
+    return JSON.parse(fs.readFileSync(customGroupsFile, "utf8"));
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveCustomGroups(items) {
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(customGroupsFile, JSON.stringify(items, null, 2) + "\n", "utf8");
+}
+
 function readBody(req, callback) {
   let body = "";
   req.on("data", (chunk) => {
@@ -79,6 +93,27 @@ function cleanUrl(value) {
   }
 }
 
+function groupFromInput(input, existing) {
+  const name = cleanText(input.name, 120);
+  if (!name) return { error: "Card name is required." };
+  const host = cleanText(input.host, 80) || "docker-lxc";
+  const category = cleanText(input.category, 40) || "apps";
+  return {
+    item: Object.assign({}, existing || {}, {
+      id: existing && existing.id ? existing.id : "custom-group-" + slugify(name) + "-" + Date.now().toString(36),
+      name,
+      host,
+      category,
+      importance: new Set(["critical", "high", "medium", "low"]).has(input.importance) ? input.importance : "low",
+      purpose: cleanText(input.purpose, 260),
+      notes: cleanText(input.notes, 500) ? cleanText(input.notes, 500).split(/\n+/).map((item) => item.trim()).filter(Boolean) : [],
+      source: "dashboard",
+      createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    })
+  };
+}
+
 function serviceFromInput(input, existing) {
   const name = cleanText(input.name, 120);
   if (!name) return { error: "Service name is required." };
@@ -100,6 +135,7 @@ function serviceFromInput(input, existing) {
       host,
       category,
       source: "dashboard",
+      deleted: Boolean(input.deleted),
       discovery: input.discovery || (existing && existing.discovery) || null,
       createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -154,8 +190,8 @@ function readInventoryHosts() {
 function serviceChecks() {
   const customServices = readCustomServices();
   const overrides = new Map(customServices.filter((service) => service.overrideOf).map((service) => [service.overrideOf, service]));
-  const inventoryChecks = readInventoryServices().map((service) => Object.assign({}, service, overrides.get(service.id) || {}, { id: service.id }));
-  const customChecks = customServices.filter((service) => !service.overrideOf).map((service) => ({ ...service, disabled: !service.url }));
+  const inventoryChecks = readInventoryServices().map((service) => Object.assign({}, service, overrides.get(service.id) || {}, { id: service.id })).filter((service) => !service.deleted);
+  const customChecks = customServices.filter((service) => !service.overrideOf && !service.deleted).map((service) => ({ ...service, disabled: !service.url }));
   const seen = new Set();
   return inventoryChecks.concat(customChecks).filter((service) => {
     if (service.disabled) return false;
@@ -323,6 +359,27 @@ function parseStorage(samples) {
   return { filesystems, disks };
 }
 
+function ensureExpectedStorage(host, metrics) {
+  if (!metrics || !metrics.storage || host.id !== "serverpi") return metrics;
+  const hasMediaDisk = metrics.storage.filesystems.some((item) => item.mount === "/media/wd2001ext4" || item.device === "/dev/sda1");
+  if (!hasMediaDisk) {
+    metrics.storage.filesystems.unshift({
+      mount: "/media/wd2001ext4",
+      device: "/dev/sda1",
+      fstype: "ext4",
+      totalGiB: 1843.2,
+      availableGiB: null,
+      usedGiB: null,
+      usedPercent: null,
+      readonly: false,
+      deviceError: false,
+      severity: "unknown",
+      expected: true
+    });
+  }
+  return metrics;
+}
+
 function parseNodeMetrics(text) {
   const samples = parseMetricSamples(text);
   const metric = (name, labels = {}) => {
@@ -367,7 +424,7 @@ async function checkHostHealth(host) {
   try {
     const response = await fetchText(host.metricsUrl);
     if (response.statusCode < 500 && response.body.includes("node_")) {
-      metrics = parseNodeMetrics(response.body);
+      metrics = ensureExpectedStorage(host, parseNodeMetrics(response.body));
       metricsState = "online";
       metricsError = "";
     } else {
@@ -459,6 +516,56 @@ async function discoveryPayload() {
 }
 
 function handleApi(req, res, urlPath) {
+  if (urlPath === "/api/groups" && req.method === "GET") {
+    sendJson(res, 200, { groups: readCustomGroups() });
+    return true;
+  }
+
+  if (urlPath === "/api/groups" && req.method === "POST") {
+    readBody(req, (error, body) => {
+      if (error) return sendJson(res, 400, { error: "Could not read request body." });
+      let input;
+      try { input = JSON.parse(body || "{}"); } catch (parseError) { return sendJson(res, 400, { error: "Invalid JSON." }); }
+      const result = groupFromInput(input);
+      if (result.error) return sendJson(res, 400, { error: result.error });
+      const items = readCustomGroups();
+      items.unshift(result.item);
+      saveCustomGroups(items);
+      sendJson(res, 201, { group: result.item });
+    });
+    return true;
+  }
+
+  if (urlPath.startsWith("/api/groups/") && req.method === "PUT") {
+    const groupId = decodeURIComponent(urlPath.slice("/api/groups/".length));
+    readBody(req, (error, body) => {
+      if (error) return sendJson(res, 400, { error: "Could not read request body." });
+      let input;
+      try { input = JSON.parse(body || "{}"); } catch (parseError) { return sendJson(res, 400, { error: "Invalid JSON." }); }
+      const items = readCustomGroups();
+      const index = items.findIndex((item) => item.id === groupId || item.overrideOf === groupId);
+      const existing = index === -1 ? { id: groupId, overrideOf: groupId, source: "dashboard", createdAt: new Date().toISOString() } : items[index];
+      const result = groupFromInput(input, existing);
+      if (result.error) return sendJson(res, 400, { error: result.error });
+      if (input.deleted) result.item.deleted = true;
+      if (index === -1) items.unshift(result.item); else items[index] = result.item;
+      saveCustomGroups(items);
+      sendJson(res, 200, { group: result.item });
+    });
+    return true;
+  }
+
+  if (urlPath.startsWith("/api/groups/") && req.method === "DELETE") {
+    const groupId = decodeURIComponent(urlPath.slice("/api/groups/".length));
+    const items = readCustomGroups();
+    const index = items.findIndex((item) => item.id === groupId || item.overrideOf === groupId);
+    if (index === -1) items.unshift({ id: groupId, overrideOf: groupId, source: "dashboard", deleted: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    else items[index] = Object.assign({}, items[index], { deleted: true, updatedAt: new Date().toISOString() });
+    saveCustomGroups(items);
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
   if (urlPath === "/api/services" && req.method === "GET") {
     sendJson(res, 200, { services: readCustomServices() });
     return true;
@@ -525,10 +632,11 @@ function handleApi(req, res, urlPath) {
     const items = readCustomServices();
     const nextItems = items.filter((item) => item.id !== serviceId && item.overrideOf !== serviceId);
     if (nextItems.length === items.length) {
-      sendJson(res, 404, { error: "Service not found." });
-      return true;
+      items.unshift({ id: serviceId, overrideOf: serviceId, source: "dashboard", deleted: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      saveCustomServices(items);
+    } else {
+      saveCustomServices(nextItems);
     }
-    saveCustomServices(nextItems);
     sendJson(res, 200, { ok: true });
     return true;
   }

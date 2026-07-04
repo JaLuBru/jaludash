@@ -250,6 +250,25 @@ function emptyServiceDraft() {
   return { name: "", url: "", checkUrl: "", host: "docker-lxc", category: "apps", importance: "low", status: "documented", purpose: "" };
 }
 
+function discoveredServiceOptions() {
+  return (state.discovery.unknown || []).filter((container) => container && (container.name || container.id));
+}
+
+function findDiscoveredService(value) {
+  const selected = String(value || "").trim().toLowerCase();
+  if (!selected) return null;
+  return discoveredServiceOptions().find((container) => String(container.name || "").trim().toLowerCase() === selected || String(container.id || "").trim().toLowerCase() === selected) || null;
+}
+
+function applyDiscoveredService(container, form) {
+  if (!container || !form) return;
+  const draft = discoveryToDraft(container);
+  state.serviceDraft = draft;
+  ["name", "url", "checkUrl", "host", "category", "importance", "status", "purpose"].forEach((field) => {
+    if (form.elements[field]) form.elements[field].value = draft[field] || "";
+  });
+}
+
 function openServiceModal(draft) {
   state.serviceDraft = Object.assign(emptyServiceDraft(), draft || {});
   state.serviceModalOpen = true;
@@ -294,13 +313,20 @@ function serviceModal() {
   const importanceOptions = ["low", "medium", "high", "critical"].map((importance) => '<option value="' + importance + '" ' + (draft.importance === importance ? 'selected' : '') + '>' + escapeHtml(importance) + '</option>').join('');
   const statusOptions = ["documented", "planned", "unstable", "unknown"].map((status) => '<option value="' + status + '" ' + (draft.status === status ? 'selected' : '') + '>' + escapeHtml(status) + '</option>').join('');
   const aiNote = '<div class="ai-note"><div><strong>AI fill</strong><span>Manual add works now. OpenAI/Anthropic fill comes next after choosing where API keys live on the server.</span></div><button type="button" disabled>AI fill</button></div>';
-  return '<div class="modal-backdrop"><form class="service-modal" data-service-form="true"><div class="card-head"><div><p class="eyebrow">Add Service</p><h2>Service details</h2></div><button type="button" class="icon-close" data-close-service-modal="true">Close</button></div>' + aiNote + '<label><span>Name</span><input name="name" required maxlength="120" value="' + escapeHtml(draft.name) + '" /></label><label><span>URL</span><input name="url" maxlength="300" placeholder="http://192.168.0.191:1234" value="' + escapeHtml(draft.url) + '" /></label><label><span>Check URL</span><input name="checkUrl" maxlength="300" value="' + escapeHtml(draft.checkUrl || draft.url || '') + '" /></label><div class="form-row"><label><span>Host</span><select name="host">' + hostOptions + '</select></label><label><span>Category</span><select name="category">' + categoryOptions + '</select></label></div><div class="form-row"><label><span>Importance</span><select name="importance">' + importanceOptions + '</select></label><label><span>Status</span><select name="status">' + statusOptions + '</select></label></div><label><span>Purpose</span><textarea name="purpose" rows="4" maxlength="260">' + escapeHtml(draft.purpose) + '</textarea></label><div class="modal-actions"><button class="primary-action" type="submit" ' + (state.savingService ? 'disabled' : '') + '>' + (state.savingService ? 'Saving...' : 'Save service') + '</button><button type="button" data-close-service-modal="true">Cancel</button></div>' + (state.serviceSaveError ? '<p class="form-error">' + escapeHtml(state.serviceSaveError) + '</p>' : '') + '</form></div>';
+  const discovered = discoveredServiceOptions();
+  const discoveredList = discovered.length ? '<datalist id="discovered-service-options">' + discovered.map((container) => '<option value="' + escapeHtml(container.name || container.id) + '">' + escapeHtml(container.image || container.status || 'Discovered service') + '</option>').join('') + '</datalist><p class="field-hint">Pick a discovered service here to prefill the form.</p>' : '';
+  const nameList = discovered.length ? ' list="discovered-service-options"' : '';
+  return '<div class="modal-backdrop"><form class="service-modal" data-service-form="true"><div class="card-head"><div><p class="eyebrow">Add Service</p><h2>Service details</h2></div><button type="button" class="icon-close" data-close-service-modal="true">Close</button></div>' + aiNote + '<label><span>Name</span><input name="name" data-service-name-input="true" required maxlength="120"' + nameList + ' value="' + escapeHtml(draft.name) + '" /></label>' + discoveredList + '<label><span>URL</span><input name="url" maxlength="300" placeholder="http://192.168.0.191:1234" value="' + escapeHtml(draft.url) + '" /></label><label><span>Check URL</span><input name="checkUrl" maxlength="300" value="' + escapeHtml(draft.checkUrl || draft.url || '') + '" /></label><div class="form-row"><label><span>Host</span><select name="host">' + hostOptions + '</select></label><label><span>Category</span><select name="category">' + categoryOptions + '</select></label></div><div class="form-row"><label><span>Importance</span><select name="importance">' + importanceOptions + '</select></label><label><span>Status</span><select name="status">' + statusOptions + '</select></label></div><label><span>Purpose</span><textarea name="purpose" rows="4" maxlength="260">' + escapeHtml(draft.purpose) + '</textarea></label><div class="modal-actions"><button class="primary-action" type="submit" ' + (state.savingService ? 'disabled' : '') + '>' + (state.savingService ? 'Saving...' : 'Save service') + '</button><button type="button" data-close-service-modal="true">Cancel</button></div>' + (state.serviceSaveError ? '<p class="form-error">' + escapeHtml(state.serviceSaveError) + '</p>' : '') + '</form></div>';
 }
 
 function wireServiceModal() {
   document.querySelectorAll('[data-close-service-modal]').forEach((button) => button.addEventListener('click', closeServiceModal));
   const form = document.querySelector('[data-service-form]');
-  if (form) form.addEventListener('submit', (event) => { event.preventDefault(); saveService(form); });
+  if (form) {
+    const nameInput = form.querySelector('[data-service-name-input]');
+    if (nameInput) nameInput.addEventListener('change', () => applyDiscoveredService(findDiscoveredService(nameInput.value), form));
+    form.addEventListener('submit', (event) => { event.preventDefault(); saveService(form); });
+  }
 }
 
 async function loadRoadmapItems() {
@@ -511,7 +537,7 @@ function serviceDirectory() {
   document.querySelectorAll('[data-focus]').forEach((button) => button.addEventListener('click', () => { state.focus = button.dataset.focus; serviceDirectory(); }));
   document.querySelectorAll('[data-service-id]').forEach((button) => button.addEventListener('click', () => { state.selectedServiceId = button.dataset.serviceId; state.view = 'service-detail'; render(); }));
   const addButton = document.querySelector('[data-add-service]');
-  if (addButton) addButton.addEventListener('click', () => { const firstUnknown = (state.discovery.unknown || [])[0]; openServiceModal(firstUnknown ? discoveryToDraft(firstUnknown) : emptyServiceDraft()); });
+  if (addButton) addButton.addEventListener('click', () => openServiceModal(emptyServiceDraft()));
 }
 
 function groupCard(group) {

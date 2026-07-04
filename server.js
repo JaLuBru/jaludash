@@ -104,6 +104,22 @@ function serviceChecks() {
   });
 }
 
+function normalizeName(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function readInventoryServiceNames() {
+  const text = readInventoryText();
+  const matches = Array.from(text.matchAll(/{ id: "([^"]+)", name: "([^"]+)"([^
+]*?)}/g));
+  const names = new Set();
+  matches.forEach((match) => {
+    names.add(normalizeName(match[1]));
+    names.add(normalizeName(match[2]));
+  });
+  return names;
+}
+
 function requestService(service, method) {
   return new Promise((resolve, reject) => {
     const target = new URL(service.checkUrl || service.url);
@@ -174,13 +190,77 @@ function parseLabels(labelText) {
   return Object.fromEntries(Array.from(labelText.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)="((?:\\.|[^"])*)"/g)).map((match) => [match[1], match[2].replace(/\\"/g, '"')]));
 }
 
-function parseNodeMetrics(text) {
-  const samples = text.split(/\n/).map((line) => {
+function parseMetricSamples(text) {
+  return text.split(/\n/).map((line) => {
     const match = line.match(/^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{([^}]*)\})?\s+(-?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?)/i);
     if (!match) return null;
     return { name: match[1], labels: parseLabels(match[2]), value: Number(match[3]) };
   }).filter(Boolean);
+}
 
+function storageSeverity(usedPercent) {
+  if (!Number.isFinite(usedPercent)) return "unknown";
+  if (usedPercent >= 90) return "critical";
+  if (usedPercent >= 80) return "high";
+  if (usedPercent >= 70) return "medium";
+  return "low";
+}
+
+function parseStorage(samples) {
+  const byKey = new Map();
+  samples.filter((entry) => ["node_filesystem_size_bytes", "node_filesystem_avail_bytes", "node_filesystem_readonly", "node_filesystem_device_error"].includes(entry.name)).forEach((entry) => {
+    const key = [entry.labels.mountpoint || "", entry.labels.device || "", entry.labels.fstype || ""].join("|");
+    if (!byKey.has(key)) byKey.set(key, { mount: entry.labels.mountpoint || "", device: entry.labels.device || "", fstype: entry.labels.fstype || "" });
+    const item = byKey.get(key);
+    if (entry.name === "node_filesystem_size_bytes") item.totalBytes = entry.value;
+    if (entry.name === "node_filesystem_avail_bytes") item.availableBytes = entry.value;
+    if (entry.name === "node_filesystem_readonly") item.readonly = entry.value === 1;
+    if (entry.name === "node_filesystem_device_error") item.deviceError = entry.value === 1;
+  });
+
+  const ignoredFstypes = new Set(["autofs", "binfmt_misc", "bpf", "cgroup", "cgroup2", "configfs", "debugfs", "devpts", "devtmpfs", "fusectl", "hugetlbfs", "mqueue", "nsfs", "overlay", "proc", "pstore", "rpc_pipefs", "securityfs", "sysfs", "tmpfs", "tracefs"]);
+  const filesystems = Array.from(byKey.values()).filter((item) => item.mount && item.totalBytes > 0 && !ignoredFstypes.has(item.fstype) && !item.mount.startsWith("/run/")).map((item) => {
+    const usedBytes = Math.max(0, (item.totalBytes || 0) - (item.availableBytes || 0));
+    const usedPercent = item.totalBytes ? Math.round((usedBytes / item.totalBytes) * 100) : null;
+    return {
+      mount: item.mount,
+      device: item.device,
+      fstype: item.fstype,
+      totalGiB: bytesToGiB(item.totalBytes),
+      availableGiB: bytesToGiB(item.availableBytes || 0),
+      usedGiB: bytesToGiB(usedBytes),
+      usedPercent,
+      readonly: Boolean(item.readonly),
+      deviceError: Boolean(item.deviceError),
+      severity: storageSeverity(usedPercent)
+    };
+  }).sort((a, b) => (b.totalGiB || 0) - (a.totalGiB || 0));
+
+  const diskInfo = samples.filter((entry) => entry.name === "node_disk_info" || entry.name === "smartmon_device_info").map((entry) => ({
+    device: entry.labels.device || entry.labels.disk || "",
+    model: entry.labels.model || entry.labels.device_model || entry.labels.model_family || "",
+    serial: entry.labels.serial || entry.labels.serial_number || "",
+    type: entry.labels.type || "block"
+  })).filter((disk) => disk.device);
+  const seen = new Set();
+  const disks = diskInfo.filter((disk) => {
+    const key = disk.device + disk.model + disk.serial;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((disk) => {
+    const smartDisk = disk.device.startsWith("/dev/") ? disk.device : "/dev/" + disk.device.replace(/p?\d+$/, "");
+    const health = samples.find((entry) => entry.name === "smartmon_device_smart_healthy" && entry.labels.disk === smartDisk);
+    const temp = samples.find((entry) => (entry.name === "smartmon_temperature_celsius_raw_value" || entry.name === "nvme_temperature_celsius") && (entry.labels.disk === smartDisk || entry.labels.device === disk.device));
+    const wear = samples.find((entry) => entry.name === "nvme_percentage_used_ratio" && entry.labels.device === disk.device);
+    return { ...disk, health: health ? (health.value === 1 ? "healthy" : "attention") : "unknown", temperatureC: temp ? Math.round(temp.value) : null, wearPercent: wear ? Math.round(wear.value * 100) : null };
+  });
+
+  return { filesystems, disks };
+}
+
+function parseNodeMetrics(text) {
+  const samples = parseMetricSamples(text);
   const metric = (name, labels = {}) => {
     const sample = samples.find((entry) => entry.name === name && Object.entries(labels).every(([key, value]) => entry.labels[key] === value));
     return sample ? sample.value : null;
@@ -188,13 +268,13 @@ function parseNodeMetrics(text) {
 
   const memTotal = metric("node_memory_MemTotal_bytes");
   const memAvailable = metric("node_memory_MemAvailable_bytes");
-  const rootTotal = metric("node_filesystem_size_bytes", { mountpoint: "/" });
-  const rootFree = metric("node_filesystem_avail_bytes", { mountpoint: "/" });
-  const rootSample = samples.find((entry) => entry.name === "node_filesystem_size_bytes" && entry.labels.mountpoint === "/");
+  const storage = parseStorage(samples);
+  const rootFs = storage.filesystems.find((item) => item.mount === "/");
   const bootTime = metric("node_boot_time_seconds");
   return {
     memory: memTotal && memAvailable ? { totalGiB: bytesToGiB(memTotal), usedGiB: bytesToGiB(memTotal - memAvailable), usedPercent: Math.round(((memTotal - memAvailable) / memTotal) * 100) } : null,
-    disk: rootTotal && rootFree ? { mount: "/", device: rootSample && rootSample.labels.device, totalGiB: bytesToGiB(rootTotal), usedGiB: bytesToGiB(rootTotal - rootFree), usedPercent: Math.round(((rootTotal - rootFree) / rootTotal) * 100) } : null,
+    disk: rootFs ? { mount: rootFs.mount, device: rootFs.device, totalGiB: rootFs.totalGiB, usedGiB: rootFs.usedGiB, usedPercent: rootFs.usedPercent } : null,
+    storage,
     uptimeSeconds: bootTime ? Math.max(0, Math.round(Date.now() / 1000 - bootTime)) : null
   };
 }
@@ -272,7 +352,54 @@ async function clientInfoPayload(req) {
   return { localIp, hostname, checkedAt: new Date().toISOString() };
 }
 
+
+function dockerSocketRequest(pathname) {
+  return new Promise((resolve, reject) => {
+    const req = httpClient.request({ socketPath: "/var/run/docker.sock", path: pathname, method: "GET", timeout: 2500 }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => { body += chunk; if (body.length > 2_000_000) req.destroy(new Error("response too large")); });
+      response.on("end", () => resolve({ statusCode: response.statusCode || 0, body }));
+    });
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+async function discoveryPayload() {
+  const knownNames = readInventoryServiceNames();
+  try {
+    const response = await dockerSocketRequest("/containers/json?all=1");
+    if (response.statusCode >= 400) throw new Error("Docker returned HTTP " + response.statusCode);
+    const raw = JSON.parse(response.body || "[]");
+    const containers = raw.map((container) => {
+      const name = String((container.Names && container.Names[0]) || "").replace(/^\//, "");
+      const image = container.Image || "";
+      const normalized = normalizeName(name);
+      const known = knownNames.has(normalized) || Array.from(knownNames).some((known) => normalized.includes(known) || known.includes(normalized));
+      return {
+        id: String(container.Id || "").slice(0, 12),
+        name,
+        image,
+        state: container.State || "unknown",
+        status: container.Status || "",
+        ports: (container.Ports || []).map((port) => ({ privatePort: port.PrivatePort, publicPort: port.PublicPort, type: port.Type, ip: port.IP })).filter((port) => port.privatePort || port.publicPort),
+        known
+      };
+    }).sort((a, b) => Number(a.known) - Number(b.known) || a.name.localeCompare(b.name));
+    return { checkedAt: new Date().toISOString(), dockerAvailable: true, containers, unknown: containers.filter((item) => !item.known) };
+  } catch (error) {
+    return { checkedAt: new Date().toISOString(), dockerAvailable: false, error: error.message, containers: [], unknown: [] };
+  }
+}
+
 function handleApi(req, res, urlPath) {
+  if (urlPath === "/api/discovery" && req.method === "GET") {
+    discoveryPayload().then((payload) => sendJson(res, 200, payload)).catch((error) => sendJson(res, 500, { error: error.message }));
+    return true;
+  }
+
   if (urlPath === "/api/client-info" && req.method === "GET") {
     clientInfoPayload(req).then((payload) => sendJson(res, 200, payload)).catch((error) => sendJson(res, 500, { error: error.message }));
     return true;

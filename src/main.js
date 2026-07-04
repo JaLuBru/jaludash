@@ -28,7 +28,12 @@ const state = {
   clientInfoLoaded: false,
   discovery: { dockerAvailable: false, containers: [], unknown: [], checkedAt: "" },
   discoveryLoading: false,
-  discoveryError: ""
+  discoveryError: "",
+  customServices: [],
+  serviceModalOpen: false,
+  serviceDraft: null,
+  serviceSaveError: "",
+  savingService: false
 };
 const app = document.querySelector("#app");
 const fencePattern = new RegExp(String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96) + "[\\s\\S]*?" + String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96), "g");
@@ -213,6 +218,91 @@ function refreshStatusAndRender() {
   refreshLiveDataAndRender();
 }
 
+async function loadCustomServices() {
+  try {
+    const response = await fetch("/api/services");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Service API unavailable");
+    state.customServices = Array.isArray(data.services) ? data.services : [];
+  } catch (error) {
+    state.serviceSaveError = error.message;
+  }
+}
+
+function discoveryToDraft(container) {
+  const port = (container.ports || []).find((item) => item.publicPort) || (container.ports || [])[0] || {};
+  const publicPort = port.publicPort || port.privatePort || "";
+  const url = publicPort ? "http://192.168.0.191:" + publicPort : "";
+  return {
+    name: container.name || "",
+    url,
+    checkUrl: url,
+    host: "docker-lxc",
+    category: "apps",
+    importance: "low",
+    status: "documented",
+    purpose: container.image ? "Container image: " + container.image : "",
+    discovery: { type: "docker", id: container.id, image: container.image, state: container.state }
+  };
+}
+
+function emptyServiceDraft() {
+  return { name: "", url: "", checkUrl: "", host: "docker-lxc", category: "apps", importance: "low", status: "documented", purpose: "" };
+}
+
+function openServiceModal(draft) {
+  state.serviceDraft = Object.assign(emptyServiceDraft(), draft || {});
+  state.serviceModalOpen = true;
+  state.serviceSaveError = "";
+  render();
+}
+
+function closeServiceModal() {
+  state.serviceModalOpen = false;
+  state.serviceDraft = null;
+  state.serviceSaveError = "";
+  render();
+}
+
+async function saveService(form) {
+  const payload = Object.fromEntries(new FormData(form).entries());
+  payload.discovery = state.serviceDraft && state.serviceDraft.discovery ? state.serviceDraft.discovery : null;
+  state.savingService = true;
+  state.serviceSaveError = "";
+  render();
+  try {
+    const response = await fetch("/api/services", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not save service.");
+    state.customServices.unshift(data.service);
+    state.serviceModalOpen = false;
+    state.serviceDraft = null;
+    state.savingService = false;
+    refreshLiveDataAndRender();
+  } catch (error) {
+    state.serviceSaveError = error.message;
+    state.savingService = false;
+    render();
+  }
+}
+
+function serviceModal() {
+  if (!state.serviceModalOpen) return "";
+  const draft = state.serviceDraft || emptyServiceDraft();
+  const hostOptions = ["docker-lxc", "serverpi", "optipi", "plex-lxc", "pihole-lxc"].map((host) => '<option value="' + host + '" ' + (draft.host === host ? 'selected' : '') + '>' + escapeHtml(hostName(host)) + '</option>').join('');
+  const categoryOptions = ["apps", "media", "management", "network", "home", "other"].map((category) => '<option value="' + category + '" ' + (draft.category === category ? 'selected' : '') + '>' + escapeHtml(category) + '</option>').join('');
+  const importanceOptions = ["low", "medium", "high", "critical"].map((importance) => '<option value="' + importance + '" ' + (draft.importance === importance ? 'selected' : '') + '>' + escapeHtml(importance) + '</option>').join('');
+  const statusOptions = ["documented", "planned", "unstable", "unknown"].map((status) => '<option value="' + status + '" ' + (draft.status === status ? 'selected' : '') + '>' + escapeHtml(status) + '</option>').join('');
+  const aiNote = '<div class="ai-note"><div><strong>AI fill</strong><span>Manual add works now. OpenAI/Anthropic fill comes next after choosing where API keys live on the server.</span></div><button type="button" disabled>AI fill</button></div>';
+  return '<div class="modal-backdrop"><form class="service-modal" data-service-form="true"><div class="card-head"><div><p class="eyebrow">Add Service</p><h2>Service details</h2></div><button type="button" class="icon-close" data-close-service-modal="true">Close</button></div>' + aiNote + '<label><span>Name</span><input name="name" required maxlength="120" value="' + escapeHtml(draft.name) + '" /></label><label><span>URL</span><input name="url" maxlength="300" placeholder="http://192.168.0.191:1234" value="' + escapeHtml(draft.url) + '" /></label><label><span>Check URL</span><input name="checkUrl" maxlength="300" value="' + escapeHtml(draft.checkUrl || draft.url || '') + '" /></label><div class="form-row"><label><span>Host</span><select name="host">' + hostOptions + '</select></label><label><span>Category</span><select name="category">' + categoryOptions + '</select></label></div><div class="form-row"><label><span>Importance</span><select name="importance">' + importanceOptions + '</select></label><label><span>Status</span><select name="status">' + statusOptions + '</select></label></div><label><span>Purpose</span><textarea name="purpose" rows="4" maxlength="260">' + escapeHtml(draft.purpose) + '</textarea></label><div class="modal-actions"><button class="primary-action" type="submit" ' + (state.savingService ? 'disabled' : '') + '>' + (state.savingService ? 'Saving...' : 'Save service') + '</button><button type="button" data-close-service-modal="true">Cancel</button></div>' + (state.serviceSaveError ? '<p class="form-error">' + escapeHtml(state.serviceSaveError) + '</p>' : '') + '</form></div>';
+}
+
+function wireServiceModal() {
+  document.querySelectorAll('[data-close-service-modal]').forEach((button) => button.addEventListener('click', closeServiceModal));
+  const form = document.querySelector('[data-service-form]');
+  if (form) form.addEventListener('submit', (event) => { event.preventDefault(); saveService(form); });
+}
+
 async function loadRoadmapItems() {
   try {
     const response = await fetch("/api/roadmap");
@@ -295,7 +385,7 @@ function parentHostId(id) {
 }
 
 function services() {
-  return inventory.serviceGroups.flatMap((group) => group.services.map((service) => Object.assign({}, service, {
+  const inventoryServices = inventory.serviceGroups.flatMap((group) => group.services.map((service) => Object.assign({}, service, {
     group: group.name,
     groupId: group.id,
     groupHost: group.host,
@@ -304,6 +394,17 @@ function services() {
     groupPurpose: group.purpose,
     groupNotes: group.notes || []
   })));
+  const custom = state.customServices.map((service) => Object.assign({}, service, {
+    group: "Dashboard Added",
+    groupId: "dashboard-added",
+    groupHost: service.host || "docker-lxc",
+    parentHost: parentHostId(service.host || "docker-lxc"),
+    category: service.category || "apps",
+    groupPurpose: "Services added from jaludash.",
+    groupNotes: [],
+    dashboardAdded: true
+  }));
+  return inventoryServices.concat(custom);
 }
 
 function findService(serviceId) {
@@ -322,7 +423,7 @@ function openLink(item) {
 function shell(content) {
   const tabs = [["overview", "Overview"], ["storage", "Storage"], ["services", "Services"], ["discovery", "Discovery"], ["roadmap", "Roadmap"]];
   app.innerHTML = '<header class="topbar"><div><h1>Personal Homelab</h1></div><div class="top-actions"><button class="theme-toggle" data-status-refresh="true" type="button">' + ((state.statusLoading || state.hostHealthLoading) ? 'Checking...' : 'Refresh live data') + '</button><button class="theme-toggle" data-theme-toggle="true" type="button">' + (state.theme === 'dark' ? 'Light mode' : 'Dark mode') + '</button>' + clientInfoCard() + '</div></header><nav class="tabs">' + tabs.map(([id, label]) => '<button class="' + ((state.view === id || (state.view === 'service-detail' && id === 'services')) ? 'active' : '') + '" data-view="' + id + '">' + label + '</button>').join('') + '</nav>' + content;
-  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => { state.view = button.dataset.view; render(); if (state.view === "roadmap" && !state.roadmapLoaded) loadRoadmapItems().finally(render); refreshLiveDataAndRender(); }));
+  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => { state.view = button.dataset.view; render(); if (state.view === "roadmap" && !state.roadmapLoaded) loadRoadmapItems().finally(render); }));
   const statusRefresh = document.querySelector("[data-status-refresh]");
   if (statusRefresh) statusRefresh.addEventListener("click", refreshStatusAndRender);
   const themeToggle = document.querySelector("[data-theme-toggle]");
@@ -364,7 +465,7 @@ function matchesFocus(service) {
 
 function visibleGroups() {
   const query = state.query.trim().toLowerCase();
-  return inventory.serviceGroups.map((group) => {
+  const baseGroups = inventory.serviceGroups.map((group) => {
     const groupParentHost = parentHostId(group.host);
     const groupText = [group.name, group.category, group.purpose, hostName(group.host), hostName(groupParentHost)].join(' ').toLowerCase();
     const groupMatchesQuery = !query || groupText.includes(query);
@@ -379,6 +480,13 @@ function visibleGroups() {
     if (matchedServices.length) return Object.assign({}, group, { services: matchedServices });
     return null;
   }).filter(Boolean);
+  const customServices = state.customServices.filter((service) => {
+    const serviceText = [service.name, service.importance, service.status, service.url || '', service.category, hostName(service.host || 'docker-lxc')].join(' ').toLowerCase();
+    const parent = parentHostId(service.host || 'docker-lxc');
+    return (!query || serviceText.includes(query)) && (state.host === 'all' || parent === state.host || service.host === state.host) && (state.category === 'all' || service.category === state.category) && matchesFocus(service);
+  });
+  if (customServices.length) baseGroups.unshift({ id: 'dashboard-added', name: 'Dashboard Added', host: 'docker-lxc', category: 'apps', importance: 'low', purpose: 'Services added from jaludash.', services: customServices });
+  return baseGroups;
 }
 
 function directoryStats() {
@@ -396,12 +504,14 @@ function serviceDirectory() {
   const filterButtons = [['all', 'All'], ['openable', 'Has URL'], ['needs-docs', 'Needs Docs'], ['important', 'High/Critical'], ['planned', 'Planned']].map(([id, label]) => '<button class="' + (state.focus === id ? 'active' : '') + '" data-focus="' + id + '">' + label + '</button>').join('');
   const hostOptions = ['<option value="all">All hosts</option>'].concat(inventory.hosts.map((host) => '<option value="' + host.id + '" ' + (state.host === host.id ? 'selected' : '') + '>' + host.shortName + '</option>')).join('');
   const categoryOptions = ['<option value="all">All categories</option>'].concat(uniqueCategories().map((category) => '<option value="' + category + '" ' + (state.category === category ? 'selected' : '') + '>' + category + '</option>')).join('');
-  shell('<main class="page service-page"><section class="service-hero"><div><h2>Service directory</h2><p class="status-timestamp">' + (state.statusCheckedAt ? 'Last checked ' + new Date(state.statusCheckedAt).toLocaleTimeString() : 'Status not checked yet') + (state.statusError ? ' / ' + state.statusError : '') + '</p></div><div class="directory-stats"><article><span>Total</span><strong>' + stats.total + '</strong></article><article><span>Openable</span><strong>' + stats.openable + '</strong></article><article><span>No URL</span><strong>' + stats.missingUrl + '</strong></article><article><span>Important</span><strong>' + stats.important + '</strong></article></div></section><section class="service-controls"><label class="search"><span>Search</span><input type="search" value="' + escapeHtml(state.query) + '" placeholder="Try Plex, network, serverpi..." /></label><label><span>Host</span><select data-filter="host">' + hostOptions + '</select></label><label><span>Category</span><select data-filter="category">' + categoryOptions + '</select></label><div class="quick-filters" aria-label="Quick service filters">' + filterButtons + '</div></section><section class="directory-result"><div class="result-line"><strong>' + groups.reduce((sum, group) => sum + group.services.length, 0) + '</strong><span> matching services in </span><strong>' + groups.length + '</strong><span> stacks</span></div></section><section class="group-grid service-groups">' + (groups.map(groupCard).join('') || '<div class="empty">No services match these filters.</div>') + '</section></main>');
+  shell('<main class="page service-page"><section class="service-hero"><div><h2>Service directory</h2><p class="status-timestamp">' + (state.statusCheckedAt ? 'Last checked ' + new Date(state.statusCheckedAt).toLocaleTimeString() : 'Status not checked yet') + (state.statusError ? ' / ' + state.statusError : '') + '</p><button class="primary-action inline-action" type="button" data-add-service="true">Add Service</button></div><div class="directory-stats"><article><span>Total</span><strong>' + stats.total + '</strong></article><article><span>Openable</span><strong>' + stats.openable + '</strong></article><article><span>No URL</span><strong>' + stats.missingUrl + '</strong></article><article><span>Important</span><strong>' + stats.important + '</strong></article></div></section><section class="service-controls"><label class="search"><span>Search</span><input type="search" value="' + escapeHtml(state.query) + '" placeholder="Try Plex, network, serverpi..." /></label><label><span>Host</span><select data-filter="host">' + hostOptions + '</select></label><label><span>Category</span><select data-filter="category">' + categoryOptions + '</select></label><div class="quick-filters" aria-label="Quick service filters">' + filterButtons + '</div></section><section class="directory-result"><div class="result-line"><strong>' + groups.reduce((sum, group) => sum + group.services.length, 0) + '</strong><span> matching services in </span><strong>' + groups.length + '</strong><span> stacks</span></div></section><section class="group-grid service-groups">' + (groups.map(groupCard).join('') || '<div class="empty">No services match these filters.</div>') + '</section></main>');
   const input = document.querySelector("input[type='search']");
   if (input) { input.addEventListener('input', (event) => { state.query = event.target.value; serviceDirectory(); }); input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
   document.querySelectorAll('[data-filter]').forEach((select) => select.addEventListener('change', (event) => { state[event.target.dataset.filter] = event.target.value; serviceDirectory(); }));
   document.querySelectorAll('[data-focus]').forEach((button) => button.addEventListener('click', () => { state.focus = button.dataset.focus; serviceDirectory(); }));
   document.querySelectorAll('[data-service-id]').forEach((button) => button.addEventListener('click', () => { state.selectedServiceId = button.dataset.serviceId; state.view = 'service-detail'; render(); }));
+  const addButton = document.querySelector('[data-add-service]');
+  if (addButton) addButton.addEventListener('click', () => { const firstUnknown = (state.discovery.unknown || [])[0]; openServiceModal(firstUnknown ? discoveryToDraft(firstUnknown) : emptyServiceDraft()); });
 }
 
 function groupCard(group) {
@@ -535,9 +645,10 @@ function discoveryOverview() {
   const unknown = state.discovery.unknown || [];
   const cards = containers.map((container) => {
     const ports = (container.ports || []).map((port) => [port.publicPort, port.privatePort].filter(Boolean).join('->') + '/' + (port.type || 'tcp')).join(', ');
-    return '<article class="discovery-card ' + (container.known ? 'known' : 'unknown') + '"><div class="card-head"><div><h3>' + escapeHtml(container.name || container.id) + '</h3><p>' + escapeHtml(container.image) + '</p></div><span class="status-chip ' + (container.state === 'running' ? 'online' : 'unknown') + '">' + escapeHtml(container.state || 'unknown') + '</span></div><div class="group-meta"><span>' + (container.known ? 'In inventory' : 'New to inventory') + '</span>' + (ports ? '<span>' + escapeHtml(ports) + '</span>' : '') + '</div><p class="storage-meta">' + escapeHtml(container.status || '') + '</p></article>';
+    return '<article class="discovery-card ' + (container.known ? 'known' : 'unknown') + '"><div class="card-head"><div><h3>' + escapeHtml(container.name || container.id) + '</h3><p>' + escapeHtml(container.image) + '</p></div><span class="status-chip ' + (container.state === 'running' ? 'online' : 'unknown') + '">' + escapeHtml(container.state || 'unknown') + '</span></div><div class="group-meta"><span>' + (container.known ? 'In inventory' : 'New to inventory') + '</span>' + (ports ? '<span>' + escapeHtml(ports) + '</span>' : '') + '</div><p class="storage-meta">' + escapeHtml(container.status || '') + '</p>' + (!container.known ? '<button class="primary-action inline-action" type="button" data-add-discovered="' + escapeHtml(container.id) + '">Add</button>' : '') + '</article>'; 
   }).join('') || '<div class="empty">No Docker containers found yet.</div>';
   shell('<main class="page discovery-page"><section class="stats"><article><span>Docker</span><strong>' + (state.discovery.dockerAvailable ? 'OK' : 'Off') + '</strong></article><article><span>Containers</span><strong>' + containers.length + '</strong></article><article><span>New</span><strong>' + unknown.length + '</strong></article><article><span>Running</span><strong>' + containers.filter((item) => item.state === 'running').length + '</strong></article></section><section><div class="section-title"><p class="eyebrow">Auto Discovery</p><h2>Docker containers compared with inventory</h2><p class="status-timestamp">' + (state.discovery.checkedAt ? 'Last checked ' + new Date(state.discovery.checkedAt).toLocaleTimeString() : 'Discovery not checked yet') + (state.discoveryError ? ' / ' + escapeHtml(state.discoveryError) : '') + '</p></div><div class="discovery-results">' + cards + '</div></section></main>');
+  document.querySelectorAll('[data-add-discovered]').forEach((button) => button.addEventListener('click', () => { const container = containers.find((item) => item.id === button.dataset.addDiscovered); openServiceModal(discoveryToDraft(container || {})); }));
 }
 
 function roadmapCard(item, sourceLabel) {
@@ -569,7 +680,7 @@ function roadmap() {
   }));
 }
 
-function render() {
+function renderContent() {
   if (state.view === "storage") return storageOverview();
   if (state.view === "services") return serviceDirectory();
   if (state.view === "discovery") return discoveryOverview();
@@ -578,8 +689,15 @@ function render() {
   overview();
 }
 
+function render() {
+  renderContent();
+  app.insertAdjacentHTML("beforeend", serviceModal());
+  wireServiceModal();
+}
+
 render();
 loadServiceDocs().finally(render);
+loadCustomServices().finally(render);
 loadRoadmapItems().finally(render);
 loadClientInfo().finally(render);
 refreshLiveDataAndRender();

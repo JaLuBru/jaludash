@@ -10,6 +10,7 @@ const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "0.0.0.0";
 const dataDir = path.join(root, "data");
 const roadmapFile = path.join(dataDir, "roadmap-items.json");
+const customServicesFile = path.join(dataDir, "custom-services.json");
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -36,6 +37,19 @@ function saveRoadmapItems(items) {
   fs.writeFileSync(roadmapFile, JSON.stringify(items, null, 2) + "\n", "utf8");
 }
 
+function readCustomServices() {
+  try {
+    return JSON.parse(fs.readFileSync(customServicesFile, "utf8"));
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveCustomServices(items) {
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(customServicesFile, JSON.stringify(items, null, 2) + "\n", "utf8");
+}
+
 function readBody(req, callback) {
   let body = "";
   req.on("data", (chunk) => {
@@ -48,6 +62,48 @@ function readBody(req, callback) {
 
 function cleanText(value, maxLength) {
   return String(value || "").trim().slice(0, maxLength);
+}
+
+function slugify(value) {
+  return cleanText(value, 120).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "service";
+}
+
+function cleanUrl(value) {
+  const url = cleanText(value, 300);
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.toString() : "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function serviceFromInput(input) {
+  const name = cleanText(input.name, 120);
+  if (!name) return { error: "Service name is required." };
+  const url = cleanUrl(input.url);
+  const checkUrl = cleanUrl(input.checkUrl) || url;
+  const host = cleanText(input.host, 80) || "docker-lxc";
+  const category = cleanText(input.category, 40) || "apps";
+  const importance = new Set(["critical", "high", "medium", "low"]).has(input.importance) ? input.importance : "low";
+  const status = new Set(["documented", "planned", "unstable", "unknown"]).has(input.status) ? input.status : "documented";
+  return {
+    item: {
+      id: "custom-" + slugify(name) + "-" + Date.now().toString(36),
+      name,
+      status,
+      importance,
+      url: url || null,
+      checkUrl: checkUrl || null,
+      purpose: cleanText(input.purpose, 260),
+      host,
+      category,
+      source: "dashboard",
+      discovery: input.discovery || null,
+      createdAt: new Date().toISOString()
+    }
+  };
 }
 
 function readInventoryText() {
@@ -96,7 +152,7 @@ function readInventoryHosts() {
 
 function serviceChecks() {
   const seen = new Set();
-  return readInventoryServices().filter((service) => {
+  return readInventoryServices().concat(readCustomServices().map((service) => ({ ...service, disabled: !service.url }))).filter((service) => {
     if (service.disabled) return false;
     if (seen.has(service.id)) return false;
     seen.add(service.id);
@@ -110,11 +166,15 @@ function normalizeName(value) {
 
 function readInventoryServiceNames() {
   const text = readInventoryText();
-  const matches = Array.from(text.matchAll(new RegExp('\\{ id: "([^\\"]+)", name: "([^\\"]+)"([^\\n]*?)\\}', "g")));
+  const matches = Array.from(text.matchAll(/\{ id: "([^"]+)", name: "([^"]+)"([^\n]*?)\}/g));
   const names = new Set();
   matches.forEach((match) => {
     names.add(normalizeName(match[1]));
     names.add(normalizeName(match[2]));
+  });
+  readCustomServices().forEach((service) => {
+    names.add(normalizeName(service.id));
+    names.add(normalizeName(service.name));
   });
   return names;
 }
@@ -394,6 +454,37 @@ async function discoveryPayload() {
 }
 
 function handleApi(req, res, urlPath) {
+  if (urlPath === "/api/services" && req.method === "GET") {
+    sendJson(res, 200, { services: readCustomServices() });
+    return true;
+  }
+
+  if (urlPath === "/api/services" && req.method === "POST") {
+    readBody(req, (error, body) => {
+      if (error) {
+        sendJson(res, 400, { error: "Could not read request body." });
+        return;
+      }
+      let input;
+      try {
+        input = JSON.parse(body || "{}");
+      } catch (parseError) {
+        sendJson(res, 400, { error: "Invalid JSON." });
+        return;
+      }
+      const result = serviceFromInput(input);
+      if (result.error) {
+        sendJson(res, 400, { error: result.error });
+        return;
+      }
+      const items = readCustomServices();
+      items.unshift(result.item);
+      saveCustomServices(items);
+      sendJson(res, 201, { service: result.item });
+    });
+    return true;
+  }
+
   if (urlPath === "/api/discovery" && req.method === "GET") {
     discoveryPayload().then((payload) => sendJson(res, 200, payload)).catch((error) => sendJson(res, 500, { error: error.message }));
     return true;

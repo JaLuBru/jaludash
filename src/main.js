@@ -980,6 +980,35 @@ function formatTrendNumber(value, unit) {
   return rounded + (unit || "");
 }
 
+function gibToGb(value) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+  return value * 1.073741824;
+}
+
+function niceAxisMax(value) {
+  if (!Number.isFinite(value) || value <= 0) return 10;
+  if (value <= 10) return 10;
+  if (value <= 100) return Math.ceil(value / 10) * 10;
+  if (value <= 500) return Math.ceil(value / 50) * 50;
+  return Math.ceil(value / 100) * 100;
+}
+
+function niceAxisStep(axisMax) {
+  if (axisMax <= 20) return 5;
+  if (axisMax <= 100) return 10;
+  if (axisMax <= 200) return 25;
+  if (axisMax <= 500) return 50;
+  return 100;
+}
+
+function axisLabels(axisMax, unit) {
+  const step = niceAxisStep(axisMax);
+  const labels = [];
+  for (let value = axisMax; value >= 0; value -= step) labels.push(formatTrendNumber(value, unit || ""));
+  if (labels[labels.length - 1] !== formatTrendNumber(0, unit || "")) labels.push(formatTrendNumber(0, unit || ""));
+  return labels.map((label) => '<span>' + escapeHtml(label) + '</span>').join('');
+}
+
 function formatTrendTime(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -990,7 +1019,7 @@ function formatTrendTime(value) {
 function resourceDetail(usedGiB, totalGiB, usedPercent) {
   const percent = usedPercent === null || usedPercent === undefined ? "usage unknown" : formatTrendNumber(usedPercent, "%");
   if (usedGiB === null || usedGiB === undefined || totalGiB === null || totalGiB === undefined) return percent;
-  return formatTrendNumber(usedGiB, " GiB") + " / " + formatTrendNumber(totalGiB, " GiB") + " used, " + percent;
+  return formatTrendNumber(gibToGb(usedGiB), " GB") + " / " + formatTrendNumber(gibToGb(totalGiB), " GB") + " used, " + percent;
 }
 
 function trendLine(items, valueFn, options) {
@@ -998,20 +1027,20 @@ function trendLine(items, valueFn, options) {
   const entries = (items || []).slice(-30).map((item) => ({ item, value: valueFn(item) })).filter((entry) => entry.value !== null && entry.value !== undefined && Number.isFinite(entry.value));
   if (!entries.length) return '<div class="empty inline-empty">No trend data yet.</div>';
   const values = entries.map((entry) => entry.value);
-  const min = Math.min(...values);
   const max = Math.max(...values);
-  const spread = Math.max(1, max - min);
+  const axisMin = 0;
+  const axisMax = niceAxisMax(max);
+  const spread = Math.max(1, axisMax - axisMin);
   const points = entries.map((entry, index) => {
-    const x = entries.length === 1 ? 50 : Math.round((index / (entries.length - 1)) * 1000) / 10;
-    const y = Math.round((92 - ((entry.value - min) / spread) * 76) * 10) / 10;
+    const x = entries.length === 1 ? 50 : Math.round((6 + (index / (entries.length - 1)) * 88) * 10) / 10;
+    const y = Math.round((92 - ((entry.value - axisMin) / spread) * 84) * 10) / 10;
     return { x, y, value: entry.value, checkedAt: entry.item && entry.item.checkedAt };
   });
   const polyline = points.map((point) => point.x + "," + point.y).join(" ");
-  const mid = min + ((max - min) / 2);
   const firstTime = formatTrendTime(points[0].checkedAt);
   const lastTime = formatTrendTime(points[points.length - 1].checkedAt);
-  const pointDots = points.map((point) => '<circle cx="' + point.x + '" cy="' + point.y + '" r="2.2"><title>' + escapeHtml(formatTrendNumber(point.value, config.unit || "") + (point.checkedAt ? " at " + formatTrendTime(point.checkedAt) : "")) + '</title></circle>').join('');
-  return '<div class="trend-line"><div class="trend-y-axis"><span>' + escapeHtml(formatTrendNumber(max, config.unit || "")) + '</span><span>' + escapeHtml(formatTrendNumber(mid, config.unit || "")) + '</span><span>' + escapeHtml(formatTrendNumber(min, config.unit || "")) + '</span></div><div class="trend-plot"><div class="trend-chart-frame"><svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="' + escapeHtml(config.label || "trend line") + '"><polyline points="' + polyline + '"></polyline>' + pointDots + '</svg></div><div class="trend-x-axis"><span>' + escapeHtml(firstTime || "start") + '</span><span>' + escapeHtml(lastTime || "now") + '</span></div></div></div>';
+  const pointDots = points.map((point) => '<span class="trend-point" style="left:' + point.x + '%; top:' + point.y + '%" title="' + escapeHtml(formatTrendNumber(point.value, config.unit || "") + (point.checkedAt ? " at " + formatTrendTime(point.checkedAt) : "")) + '"></span>').join('');
+  return '<div class="trend-line"><div class="trend-y-axis">' + axisLabels(axisMax, config.unit || "") + '</div><div class="trend-plot"><div class="trend-chart-frame"><svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="' + escapeHtml(config.label || "trend line") + '"><polyline points="' + polyline + '"></polyline></svg>' + pointDots + '</div><div class="trend-x-axis"><span>' + escapeHtml(firstTime || "start") + '</span><span>' + escapeHtml(lastTime || "now") + '</span></div></div></div>';
 }
 
 function hostTrendRows() {

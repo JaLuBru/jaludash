@@ -1623,6 +1623,7 @@ button, input { font: inherit; }
   height: 100%;
   min-width: 0;
   overflow: hidden;
+  pointer-events: none;
 }
 
 .trend-line polyline {
@@ -1634,11 +1635,16 @@ button, input { font: inherit; }
   vector-effect: non-scaling-stroke;
 }
 
-.trend-line circle {
-  fill: var(--surface);
-  stroke: #2563eb;
-  stroke-width: 1.8;
-  vector-effect: non-scaling-stroke;
+.trend-point {
+  position: absolute;
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #2563eb;
+  border-radius: 50%;
+  background: var(--surface);
+  transform: translate(-50%, -50%);
+  cursor: help;
 }
 
 .trend-x-axis {
@@ -1674,8 +1680,8 @@ button, input { font: inherit; }
   border-color: #334155;
 }
 
-[data-theme="dark"] .trend-line circle {
-  fill: #111827;
+[data-theme="dark"] .trend-point {
+  background: #111827;
 }
 
 @media (max-width: 720px) {

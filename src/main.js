@@ -974,11 +974,19 @@ function lastItem(items) {
   return items && items.length ? items[items.length - 1] : null;
 }
 
-function trendBars(items, valueFn, toneFn) {
+function trendLine(items, valueFn, tone) {
   const values = (items || []).slice(-30).map(valueFn).filter((value) => value !== null && value !== undefined && Number.isFinite(value));
   if (!values.length) return '<div class="empty inline-empty">No trend data yet.</div>';
-  const max = Math.max(1, ...values);
-  return '<div class="trend-bars">' + values.map((value) => '<span class="' + (toneFn ? toneFn(value) : '') + '" style="height:' + Math.max(8, Math.round((value / max) * 100)) + '%" title="' + escapeHtml(value) + '"></span>').join('') + '</div>';
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const spread = Math.max(1, max - min);
+  const points = values.map((value, index) => {
+    const x = values.length === 1 ? 100 : Math.round((index / (values.length - 1)) * 1000) / 10;
+    const y = Math.round((92 - ((value - min) / spread) * 76) * 10) / 10;
+    return x + "," + y;
+  }).join(" ");
+  const latest = values[values.length - 1];
+  return '<div class="trend-line ' + (tone || '') + '"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="' + points + '"></polyline></svg><div class="trend-line-meta"><span>' + escapeHtml(min) + '</span><strong>' + escapeHtml(latest) + '</strong><span>' + escapeHtml(max) + '</span></div></div>';
 }
 
 function hostTrendRows() {
@@ -987,7 +995,7 @@ function hostTrendRows() {
   return hosts.map((host) => {
     const hostSamples = state.history.hosts.map((sample) => (sample.hosts || []).find((item) => item.id === host.id)).filter(Boolean);
     const media = host.storage && host.storage.find((fs) => fs.mount === '/media/wd2001ext4');
-    return '<article class="trend-card"><div class="card-head"><div><h3>' + escapeHtml(host.id) + '</h3><p>' + escapeHtml(host.metricsState || 'unknown') + '</p></div>' + badge(host.rootUsedPercent === null || host.rootUsedPercent === undefined ? 'unknown' : host.rootUsedPercent + '%') + '</div><div class="mini"><h4>Root disk</h4>' + trendBars(hostSamples, (item) => item.rootUsedPercent) + '</div><div class="mini"><h4>Memory</h4>' + trendBars(hostSamples, (item) => item.memoryUsedPercent) + '</div>' + (media ? '<p class="storage-meta">Media mount /media/wd2001ext4: ' + escapeHtml(media.usedPercent === null || media.usedPercent === undefined ? 'usage unknown' : media.usedPercent + '% used') + '</p>' : '') + '</article>';
+    return '<article class="trend-card"><div class="card-head"><div><h3>' + escapeHtml(host.id) + '</h3><p>' + escapeHtml(host.metricsState || 'unknown') + '</p></div>' + badge(host.rootUsedPercent === null || host.rootUsedPercent === undefined ? 'unknown' : host.rootUsedPercent + '%') + '</div><div class="mini"><h4>Root disk</h4>' + trendLine(hostSamples, (item) => item.rootUsedPercent, 'warn') + '</div><div class="mini"><h4>Memory</h4>' + trendLine(hostSamples, (item) => item.memoryUsedPercent, 'good') + '</div>' + (media ? '<p class="storage-meta">Media mount /media/wd2001ext4: ' + escapeHtml(media.usedPercent === null || media.usedPercent === undefined ? 'usage unknown' : media.usedPercent + '% used') + '</p>' : '') + '</article>';
   }).join('') || '<div class="empty">No host trend samples yet.</div>';
 }
 
@@ -996,7 +1004,7 @@ function trends() {
   const latestSpeed = lastItem(state.history.speed);
   const speedText = latestSpeed ? (latestSpeed.downloadMbps ? latestSpeed.downloadMbps + ' Mbps' : latestSpeed.state || 'unknown') : 'No test yet';
   const offlineText = latestStatus ? ((latestStatus.offline || []).length + ' offline / ' + ((latestStatus.degraded || []).length) + ' degraded') : 'No status samples yet';
-  shell('<main class="page trends-page"><section class="stats"><article><span>Status samples</span><strong>' + state.history.status.length + '</strong></article><article><span>Host samples</span><strong>' + state.history.hosts.length + '</strong></article><article><span>Speed tests</span><strong>' + state.history.speed.length + '</strong></article><article><span>Latest speed</span><strong>' + escapeHtml(speedText) + '</strong></article></section><section class="service-hero"><div><h2>History and trends</h2><p class="status-timestamp">' + escapeHtml(offlineText) + (state.historyError ? ' / ' + escapeHtml(state.historyError) : '') + '</p></div><button class="primary-action inline-action" type="button" data-speed-test="true" ' + (state.speedTesting ? 'disabled' : '') + '>' + (state.speedTesting ? 'Testing...' : 'Run speed test') + '</button></section><section><div class="section-title"><p class="eyebrow">Reachability</p><h2>Online, degraded, and offline counts</h2></div><div class="trend-grid"><article class="trend-card"><h3>Offline</h3>' + trendBars(state.history.status, (item) => (item.summary && item.summary.offline) || 0, (value) => value ? 'bad' : 'good') + '</article><article class="trend-card"><h3>Degraded</h3>' + trendBars(state.history.status, (item) => (item.summary && item.summary.degraded) || 0, (value) => value ? 'warn' : 'good') + '</article><article class="trend-card"><h3>Online</h3>' + trendBars(state.history.status, (item) => (item.summary && item.summary.online) || 0, () => 'good') + '</article></div></section><section><div class="section-title"><p class="eyebrow">Hosts</p><h2>Resource trends</h2></div><div class="trend-grid">' + hostTrendRows() + '</div></section><section><div class="section-title"><p class="eyebrow">Internet</p><h2>Download speed history</h2></div><div class="trend-grid"><article class="trend-card"><h3>Mbps</h3>' + trendBars(state.history.speed, (item) => item.downloadMbps, () => 'good') + '<p class="storage-meta">' + (latestSpeed ? 'Last checked ' + new Date(latestSpeed.checkedAt).toLocaleString() : 'Run a test to start history.') + '</p></article></div></section></main>');
+  shell('<main class="page trends-page"><section class="stats"><article><span>Status samples</span><strong>' + state.history.status.length + '</strong></article><article><span>Host samples</span><strong>' + state.history.hosts.length + '</strong></article><article><span>Speed tests</span><strong>' + state.history.speed.length + '</strong></article><article><span>Latest speed</span><strong>' + escapeHtml(speedText) + '</strong></article></section><section class="service-hero"><div><h2>History and trends</h2><p class="status-timestamp">' + escapeHtml(offlineText) + (state.historyError ? ' / ' + escapeHtml(state.historyError) : '') + '</p></div><button class="primary-action inline-action" type="button" data-speed-test="true" ' + (state.speedTesting ? 'disabled' : '') + '>' + (state.speedTesting ? 'Testing...' : 'Run speed test') + '</button></section><section><div class="section-title"><p class="eyebrow">Reachability</p><h2>Reachable services over time</h2></div><div class="trend-grid"><article class="trend-card wide-trend"><h3>Online services</h3>' + trendLine(state.history.status, (item) => (item.summary && item.summary.online) || 0, 'good') + '</article><article class="trend-card"><h3>Offline</h3>' + trendLine(state.history.status, (item) => (item.summary && item.summary.offline) || 0, 'bad') + '</article></div></section><section><div class="section-title"><p class="eyebrow">Hosts</p><h2>Resource trends</h2></div><div class="trend-grid">' + hostTrendRows() + '</div></section><section><div class="section-title"><p class="eyebrow">Internet</p><h2>Download speed history</h2></div><div class="trend-grid"><article class="trend-card wide-trend"><h3>Mbps</h3>' + trendLine(state.history.speed, (item) => item.downloadMbps, 'good') + '<p class="storage-meta">' + (latestSpeed ? 'Last checked ' + new Date(latestSpeed.checkedAt).toLocaleString() : 'Run a test to start history.') + '</p></article></div></section></main>');
   const button = document.querySelector('[data-speed-test]');
   if (button) button.addEventListener('click', runSpeedTest);
 }

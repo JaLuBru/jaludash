@@ -18,7 +18,10 @@ Optional `.env` values:
 HISTORY_LIMIT=1000
 SPEED_TEST_URL=https://speed.cloudflare.com/__down?bytes=25000000
 SPEED_TEST_TIMEOUT_MS=20000
+SPEED_TEST_INTERVAL_MINUTES=0
 ```
+
+`SPEED_TEST_INTERVAL_MINUTES=0` keeps speed tests manual. Set it to something like `60` to run one automatic download-speed sample every hour.
 
 Rebuild after changing `.env`:
 

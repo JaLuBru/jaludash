@@ -955,6 +955,20 @@ const server = http.createServer((req, res) => {
   });
 });
 
+function startSpeedTestSchedule() {
+  const intervalMinutes = Number(process.env.SPEED_TEST_INTERVAL_MINUTES || 0);
+  if (!Number.isFinite(intervalMinutes) || intervalMinutes <= 0) return;
+  const intervalMs = Math.max(5, intervalMinutes) * 60 * 1000;
+  let running = false;
+  setInterval(() => {
+    if (running) return;
+    running = true;
+    speedPayload().catch(() => null).finally(() => { running = false; });
+  }, intervalMs);
+  console.log("internet speed history scheduled every " + Math.round(intervalMs / 60000) + " minutes");
+}
+
 server.listen(port, host, () => {
   console.log("jaludash running at http://" + host + ":" + port);
+  startSpeedTestSchedule();
 });

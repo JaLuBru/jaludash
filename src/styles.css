@@ -1564,40 +1564,70 @@ button, input { font: inherit; }
   margin: 0 0 12px;
 }
 
-.trend-bars {
-  height: 86px;
-  display: flex;
-  align-items: end;
-  gap: 4px;
+.wide-trend {
+  grid-column: span 2;
+}
+
+.trend-line {
+  height: 132px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 8px;
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--soft-surface, rgba(15, 118, 110, 0.06));
 }
 
-.trend-bars span {
-  flex: 1;
-  min-width: 4px;
-  border-radius: 4px 4px 0 0;
-  background: #64748b;
+.trend-line svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
-.trend-bars span.good {
-  background: #16a34a;
+.trend-line polyline {
+  fill: none;
+  stroke: #64748b;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
 }
 
-.trend-bars span.warn {
-  background: #f59e0b;
+.trend-line.good polyline {
+  stroke: #16a34a;
 }
 
-.trend-bars span.bad {
-  background: #dc2626;
+.trend-line.warn polyline {
+  stroke: #f59e0b;
+}
+
+.trend-line.bad polyline {
+  stroke: #dc2626;
+}
+
+.trend-line-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.trend-line-meta strong {
+  color: var(--text);
 }
 
 [data-theme="dark"] .trend-card,
-[data-theme="dark"] .trend-bars {
+[data-theme="dark"] .trend-line {
   background: #111827;
   border-color: #334155;
+}
+
+@media (max-width: 720px) {
+  .wide-trend {
+    grid-column: span 1;
+  }
 }
 
 

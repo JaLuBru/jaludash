@@ -515,8 +515,12 @@ async function hostHealthPayload() {
       managementState: host.management && host.management.state ? host.management.state : "unknown",
       metricsState: host.metricsState,
       memoryUsedPercent: host.metrics && host.metrics.memory ? host.metrics.memory.usedPercent : null,
+      memoryUsedGiB: host.metrics && host.metrics.memory ? host.metrics.memory.usedGiB : null,
+      memoryTotalGiB: host.metrics && host.metrics.memory ? host.metrics.memory.totalGiB : null,
       rootUsedPercent: host.metrics && host.metrics.disk ? host.metrics.disk.usedPercent : null,
-      storage: host.metrics && host.metrics.storage ? host.metrics.storage.filesystems.map((fs) => ({ mount: fs.mount, device: fs.device, usedPercent: fs.usedPercent, totalGiB: fs.totalGiB, availableGiB: fs.availableGiB, severity: fs.severity })) : []
+      rootUsedGiB: host.metrics && host.metrics.disk ? host.metrics.disk.usedGiB : null,
+      rootTotalGiB: host.metrics && host.metrics.disk ? host.metrics.disk.totalGiB : null,
+      storage: host.metrics && host.metrics.storage ? host.metrics.storage.filesystems.map((fs) => ({ mount: fs.mount, device: fs.device, usedPercent: fs.usedPercent, totalGiB: fs.totalGiB, usedGiB: fs.usedGiB, availableGiB: fs.availableGiB, severity: fs.severity })) : []
     }))
   });
   return { checkedAt, results };

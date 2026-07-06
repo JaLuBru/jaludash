@@ -974,28 +974,61 @@ function lastItem(items) {
   return items && items.length ? items[items.length - 1] : null;
 }
 
-function trendLine(items, valueFn, tone) {
-  const values = (items || []).slice(-30).map(valueFn).filter((value) => value !== null && value !== undefined && Number.isFinite(value));
-  if (!values.length) return '<div class="empty inline-empty">No trend data yet.</div>';
+function formatTrendNumber(value, unit) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "unknown";
+  const rounded = Math.abs(value) >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
+  return rounded + (unit || "");
+}
+
+function formatTrendTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function resourceDetail(usedGiB, totalGiB, usedPercent) {
+  const percent = usedPercent === null || usedPercent === undefined ? "usage unknown" : formatTrendNumber(usedPercent, "%");
+  if (usedGiB === null || usedGiB === undefined || totalGiB === null || totalGiB === undefined) return percent;
+  return formatTrendNumber(usedGiB, " GiB") + " / " + formatTrendNumber(totalGiB, " GiB") + " used, " + percent;
+}
+
+function trendLine(items, valueFn, options) {
+  const config = options || {};
+  const entries = (items || []).slice(-30).map((item) => ({ item, value: valueFn(item) })).filter((entry) => entry.value !== null && entry.value !== undefined && Number.isFinite(entry.value));
+  if (!entries.length) return '<div class="empty inline-empty">No trend data yet.</div>';
+  const values = entries.map((entry) => entry.value);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const spread = Math.max(1, max - min);
-  const points = values.map((value, index) => {
-    const x = values.length === 1 ? 100 : Math.round((index / (values.length - 1)) * 1000) / 10;
-    const y = Math.round((92 - ((value - min) / spread) * 76) * 10) / 10;
-    return x + "," + y;
-  }).join(" ");
-  const latest = values[values.length - 1];
-  return '<div class="trend-line ' + (tone || '') + '"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polyline points="' + points + '"></polyline></svg><div class="trend-line-meta"><span>' + escapeHtml(min) + '</span><strong>' + escapeHtml(latest) + '</strong><span>' + escapeHtml(max) + '</span></div></div>';
+  const points = entries.map((entry, index) => {
+    const x = entries.length === 1 ? 50 : Math.round((index / (entries.length - 1)) * 1000) / 10;
+    const y = Math.round((92 - ((entry.value - min) / spread) * 76) * 10) / 10;
+    return { x, y, value: entry.value, checkedAt: entry.item && entry.item.checkedAt };
+  });
+  const polyline = points.map((point) => point.x + "," + point.y).join(" ");
+  const mid = min + ((max - min) / 2);
+  const firstTime = formatTrendTime(points[0].checkedAt);
+  const lastTime = formatTrendTime(points[points.length - 1].checkedAt);
+  const pointDots = points.map((point) => '<circle cx="' + point.x + '" cy="' + point.y + '" r="2.2"><title>' + escapeHtml(formatTrendNumber(point.value, config.unit || "") + (point.checkedAt ? " at " + formatTrendTime(point.checkedAt) : "")) + '</title></circle>').join('');
+  return '<div class="trend-line"><div class="trend-y-axis"><span>' + escapeHtml(formatTrendNumber(max, config.unit || "")) + '</span><span>' + escapeHtml(formatTrendNumber(mid, config.unit || "")) + '</span><span>' + escapeHtml(formatTrendNumber(min, config.unit || "")) + '</span></div><div class="trend-plot"><svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="' + escapeHtml(config.label || "trend line") + '"><polyline points="' + polyline + '"></polyline>' + pointDots + '</svg><div class="trend-x-axis"><span>' + escapeHtml(firstTime || "start") + '</span><span>' + escapeHtml(lastTime || "now") + '</span></div></div></div>';
 }
 
 function hostTrendRows() {
   const latest = lastItem(state.history.hosts) || { hosts: [] };
   const hosts = latest.hosts || [];
   return hosts.map((host) => {
-    const hostSamples = state.history.hosts.map((sample) => (sample.hosts || []).find((item) => item.id === host.id)).filter(Boolean);
+    const hostSamples = state.history.hosts.map((sample) => {
+      const match = (sample.hosts || []).find((item) => item.id === host.id);
+      return match ? Object.assign({ checkedAt: sample.checkedAt }, match) : null;
+    }).filter(Boolean);
     const media = host.storage && host.storage.find((fs) => fs.mount === '/media/wd2001ext4');
-    return '<article class="trend-card"><div class="card-head"><div><h3>' + escapeHtml(host.id) + '</h3><p>' + escapeHtml(host.metricsState || 'unknown') + '</p></div>' + badge(host.rootUsedPercent === null || host.rootUsedPercent === undefined ? 'unknown' : host.rootUsedPercent + '%') + '</div><div class="mini"><h4>Root disk</h4>' + trendLine(hostSamples, (item) => item.rootUsedPercent, 'warn') + '</div><div class="mini"><h4>Memory</h4>' + trendLine(hostSamples, (item) => item.memoryUsedPercent, 'good') + '</div>' + (media ? '<p class="storage-meta">Media mount /media/wd2001ext4: ' + escapeHtml(media.usedPercent === null || media.usedPercent === undefined ? 'usage unknown' : media.usedPercent + '% used') + '</p>' : '') + '</article>';
+    const mediaSamples = hostSamples.map((sample) => {
+      const match = (sample.storage || []).find((fs) => fs.mount === '/media/wd2001ext4' || fs.device === '/dev/sda1');
+      return match ? Object.assign({ checkedAt: sample.checkedAt }, match) : null;
+    }).filter(Boolean);
+    const mediaTrend = media ? '<div class="mini"><div class="trend-heading"><h4>wd2001ext4</h4><span>' + escapeHtml(resourceDetail(media.usedGiB, media.totalGiB, media.usedPercent)) + '</span></div>' + trendLine(mediaSamples, (item) => item.usedPercent, { unit: "%", label: "wd2001ext4 disk usage" }) + '</div>' : '';
+    return '<article class="trend-card"><div class="card-head"><div><h3>' + escapeHtml(host.id) + '</h3><p>' + escapeHtml(host.metricsState || 'unknown') + '</p></div>' + badge(host.rootUsedPercent === null || host.rootUsedPercent === undefined ? 'unknown' : host.rootUsedPercent + '%') + '</div><div class="mini"><div class="trend-heading"><h4>Root disk</h4><span>' + escapeHtml(resourceDetail(host.rootUsedGiB, host.rootTotalGiB, host.rootUsedPercent)) + '</span></div>' + trendLine(hostSamples, (item) => item.rootUsedPercent, { unit: "%", label: "root disk usage" }) + '</div><div class="mini"><div class="trend-heading"><h4>Memory</h4><span>' + escapeHtml(resourceDetail(host.memoryUsedGiB, host.memoryTotalGiB, host.memoryUsedPercent)) + '</span></div>' + trendLine(hostSamples, (item) => item.memoryUsedPercent, { unit: "%", label: "memory usage" }) + '</div>' + mediaTrend + '</article>';
   }).join('') || '<div class="empty">No host trend samples yet.</div>';
 }
 
@@ -1004,7 +1037,7 @@ function trends() {
   const latestSpeed = lastItem(state.history.speed);
   const speedText = latestSpeed ? (latestSpeed.downloadMbps ? latestSpeed.downloadMbps + ' Mbps' : latestSpeed.state || 'unknown') : 'No test yet';
   const offlineText = latestStatus ? ((latestStatus.offline || []).length + ' offline / ' + ((latestStatus.degraded || []).length) + ' degraded') : 'No status samples yet';
-  shell('<main class="page trends-page"><section class="stats"><article><span>Status samples</span><strong>' + state.history.status.length + '</strong></article><article><span>Host samples</span><strong>' + state.history.hosts.length + '</strong></article><article><span>Speed tests</span><strong>' + state.history.speed.length + '</strong></article><article><span>Latest speed</span><strong>' + escapeHtml(speedText) + '</strong></article></section><section class="service-hero"><div><h2>History and trends</h2><p class="status-timestamp">' + escapeHtml(offlineText) + (state.historyError ? ' / ' + escapeHtml(state.historyError) : '') + '</p></div><button class="primary-action inline-action" type="button" data-speed-test="true" ' + (state.speedTesting ? 'disabled' : '') + '>' + (state.speedTesting ? 'Testing...' : 'Run speed test') + '</button></section><section><div class="section-title"><p class="eyebrow">Reachability</p><h2>Reachable services over time</h2></div><div class="trend-grid"><article class="trend-card wide-trend"><h3>Online services</h3>' + trendLine(state.history.status, (item) => (item.summary && item.summary.online) || 0, 'good') + '</article><article class="trend-card"><h3>Offline</h3>' + trendLine(state.history.status, (item) => (item.summary && item.summary.offline) || 0, 'bad') + '</article></div></section><section><div class="section-title"><p class="eyebrow">Hosts</p><h2>Resource trends</h2></div><div class="trend-grid">' + hostTrendRows() + '</div></section><section><div class="section-title"><p class="eyebrow">Internet</p><h2>Download speed history</h2></div><div class="trend-grid"><article class="trend-card wide-trend"><h3>Mbps</h3>' + trendLine(state.history.speed, (item) => item.downloadMbps, 'good') + '<p class="storage-meta">' + (latestSpeed ? 'Last checked ' + new Date(latestSpeed.checkedAt).toLocaleString() : 'Run a test to start history.') + '</p></article></div></section></main>');
+  shell('<main class="page trends-page"><section class="stats"><article><span>Status samples</span><strong>' + state.history.status.length + '</strong></article><article><span>Host samples</span><strong>' + state.history.hosts.length + '</strong></article><article><span>Speed tests</span><strong>' + state.history.speed.length + '</strong></article><article><span>Latest speed</span><strong>' + escapeHtml(speedText) + '</strong></article></section><section class="service-hero"><div><h2>History and trends</h2><p class="status-timestamp">' + escapeHtml(offlineText) + (state.historyError ? ' / ' + escapeHtml(state.historyError) : '') + '</p></div><button class="primary-action inline-action" type="button" data-speed-test="true" ' + (state.speedTesting ? 'disabled' : '') + '>' + (state.speedTesting ? 'Testing...' : 'Run speed test') + '</button></section><section><div class="section-title"><p class="eyebrow">Reachability</p><h2>Reachable services over time</h2></div><div class="trend-grid"><article class="trend-card wide-trend"><h3>Online services</h3>' + trendLine(state.history.status, (item) => (item.summary && item.summary.online) || 0, { label: "online services" }) + '</article><article class="trend-card"><h3>Offline</h3>' + trendLine(state.history.status, (item) => (item.summary && item.summary.offline) || 0, { label: "offline services" }) + '</article></div></section><section><div class="section-title"><p class="eyebrow">Hosts</p><h2>Resource trends</h2></div><div class="trend-grid">' + hostTrendRows() + '</div></section><section><div class="section-title"><p class="eyebrow">Internet</p><h2>Download speed history</h2></div><div class="trend-grid"><article class="trend-card wide-trend"><h3>Mbps</h3>' + trendLine(state.history.speed, (item) => item.downloadMbps, { unit: " Mbps", label: "download speed" }) + '<p class="storage-meta">' + (latestSpeed ? 'Last checked ' + new Date(latestSpeed.checkedAt).toLocaleString() : 'Run a test to start history.') + '</p></article></div></section></main>');
   const button = document.querySelector('[data-speed-test]');
   if (button) button.addEventListener('click', runSpeedTest);
 }

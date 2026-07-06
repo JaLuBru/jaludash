@@ -1016,6 +1016,22 @@ function formatTrendTime(value) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatTrendDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const day = date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  return day + ", " + formatTrendTime(value);
+}
+
+function formatTrendAxisDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const day = date.toLocaleDateString([], { month: "short", day: "numeric" });
+  return day + " " + formatTrendTime(value);
+}
+
 function resourceDetail(usedGiB, totalGiB, usedPercent) {
   const percent = usedPercent === null || usedPercent === undefined ? "usage unknown" : formatTrendNumber(usedPercent, "%");
   if (usedGiB === null || usedGiB === undefined || totalGiB === null || totalGiB === undefined) return percent;
@@ -1037,10 +1053,10 @@ function trendLine(items, valueFn, options) {
     return { x, y, value: entry.value, checkedAt: entry.item && entry.item.checkedAt };
   });
   const polyline = points.map((point) => point.x + "," + point.y).join(" ");
-  const firstTime = formatTrendTime(points[0].checkedAt);
-  const lastTime = formatTrendTime(points[points.length - 1].checkedAt);
-  const pointDots = points.map((point) => '<span class="trend-point" style="left:' + point.x + '%; top:' + point.y + '%" title="' + escapeHtml(formatTrendNumber(point.value, config.unit || "") + (point.checkedAt ? " at " + formatTrendTime(point.checkedAt) : "")) + '"></span>').join('');
-  return '<div class="trend-line"><div class="trend-y-axis">' + axisLabels(axisMax, config.unit || "") + '</div><div class="trend-plot"><div class="trend-chart-frame"><svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="' + escapeHtml(config.label || "trend line") + '"><polyline points="' + polyline + '"></polyline></svg>' + pointDots + '</div><div class="trend-x-axis"><span>' + escapeHtml(firstTime || "start") + '</span><span>' + escapeHtml(lastTime || "now") + '</span></div></div></div>';
+  const firstTime = formatTrendAxisDateTime(points[0].checkedAt);
+  const lastTime = formatTrendAxisDateTime(points[points.length - 1].checkedAt);
+  const pointDots = points.map((point) => '<span class="trend-point" style="left:' + point.x + '%; top:' + point.y + '%" title="' + escapeHtml(formatTrendNumber(point.value, config.unit || "") + (point.checkedAt ? " at " + formatTrendDateTime(point.checkedAt) : "")) + '"></span>').join('');
+  return '<div class="trend-line"><div class="trend-y-axis">' + axisLabels(axisMax, config.unit || "") + '</div><div class="trend-plot"><div class="trend-chart-frame"><svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="' + escapeHtml(config.label || "trend line") + '"><polyline points="' + polyline + '"></polyline></svg>' + pointDots + '</div><div class="trend-x-axis"><span><em>Start</em><strong>' + escapeHtml(firstTime || "first sample") + '</strong></span><span><em>Latest</em><strong>' + escapeHtml(lastTime || "latest sample") + '</strong></span></div></div></div>';
 }
 
 function hostTrendRows() {
@@ -1057,7 +1073,7 @@ function hostTrendRows() {
       return match ? Object.assign({ checkedAt: sample.checkedAt }, match) : null;
     }).filter(Boolean);
     const mediaTrend = media ? '<div class="mini"><div class="trend-heading"><h4>wd2001ext4</h4><span>' + escapeHtml(resourceDetail(media.usedGiB, media.totalGiB, media.usedPercent)) + '</span></div>' + trendLine(mediaSamples, (item) => item.usedPercent, { unit: "%", label: "wd2001ext4 disk usage" }) + '</div>' : '';
-    return '<article class="trend-card"><div class="card-head"><div><h3>' + escapeHtml(host.id) + '</h3><p>' + escapeHtml(host.metricsState || 'unknown') + '</p></div>' + badge(host.rootUsedPercent === null || host.rootUsedPercent === undefined ? 'unknown' : host.rootUsedPercent + '%') + '</div><div class="mini"><div class="trend-heading"><h4>Root disk</h4><span>' + escapeHtml(resourceDetail(host.rootUsedGiB, host.rootTotalGiB, host.rootUsedPercent)) + '</span></div>' + trendLine(hostSamples, (item) => item.rootUsedPercent, { unit: "%", label: "root disk usage" }) + '</div><div class="mini"><div class="trend-heading"><h4>Memory</h4><span>' + escapeHtml(resourceDetail(host.memoryUsedGiB, host.memoryTotalGiB, host.memoryUsedPercent)) + '</span></div>' + trendLine(hostSamples, (item) => item.memoryUsedPercent, { unit: "%", label: "memory usage" }) + '</div>' + mediaTrend + '</article>';
+    return '<article class="trend-card"><div class="card-head"><div><h3>' + escapeHtml(host.id) + '</h3><p>' + escapeHtml(host.metricsState || 'unknown') + '</p></div></div><div class="mini"><div class="trend-heading"><h4>Root disk</h4><span>' + escapeHtml(resourceDetail(host.rootUsedGiB, host.rootTotalGiB, host.rootUsedPercent)) + '</span></div>' + trendLine(hostSamples, (item) => item.rootUsedPercent, { unit: "%", label: "root disk usage" }) + '</div><div class="mini"><div class="trend-heading"><h4>Memory</h4><span>' + escapeHtml(resourceDetail(host.memoryUsedGiB, host.memoryTotalGiB, host.memoryUsedPercent)) + '</span></div>' + trendLine(hostSamples, (item) => item.memoryUsedPercent, { unit: "%", label: "memory usage" }) + '</div>' + mediaTrend + '</article>';
   }).join('') || '<div class="empty">No host trend samples yet.</div>';
 }
 

@@ -50,7 +50,7 @@ const state = {
   deletingServiceId: ""
 };
 const app = document.querySelector("#app");
-const fencePattern = new RegExp(String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96) + "[\\s\\S]*?" + String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96), "g");
+const fencePattern = new RegExp(String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96) + "([^\\n]*)\\n([\\s\\S]*?)" + String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96), "g");
 
 async function loadServiceDocs() {
   if (serviceDocsLoaded || serviceDocsLoading) return;
@@ -820,7 +820,11 @@ function cleanObsidianText(value) {
 }
 
 function renderInlineMarkdown(value) {
-  return escapeHtml(cleanObsidianText(value)).replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  return escapeHtml(cleanObsidianText(value))
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
 }
 
 function isMarkdownTable(block) {
@@ -837,15 +841,34 @@ function renderTable(block) {
 }
 
 function renderMarkdown(markdown) {
-  const withoutCode = cleanObsidianText(String(markdown || '').replace(fencePattern, '')).replace(/^---$/gm, '');
+  const codeBlocks = [];
+  const withoutCode = cleanObsidianText(String(markdown || '').replace(fencePattern, (match, language, code) => {
+    const id = codeBlocks.length;
+    codeBlocks.push({ language: language || 'text', code: code.trim() });
+    return '\n@@CODE_BLOCK_' + id + '@@\n';
+  })).replace(/^---$/gm, '');
   return withoutCode.split(/\n{2,}/).map((block) => {
     const trimmed = block.trim();
     if (!trimmed) return '';
+    const codeMatch = trimmed.match(/^@@CODE_BLOCK_(\d+)@@$/);
+    if (codeMatch) {
+      const item = codeBlocks[Number(codeMatch[1])];
+      return '<pre><code>' + escapeHtml(item.code) + '</code></pre>';
+    }
     if (isMarkdownTable(trimmed)) return renderTable(trimmed);
+    if (/^>\s*\[![^\]]+\]/.test(trimmed)) {
+      const lines = trimmed.split(/\n/).map((line) => line.replace(/^>\s?/, ''));
+      const title = lines[0].replace(/^\[!([^\]]+)\]\s*/, '$1').trim();
+      const body = lines.slice(1).map(renderInlineMarkdown).join('<br>');
+      return '<aside class="callout"><strong>' + renderInlineMarkdown(title || 'Note') + '</strong>' + (body ? '<p>' + body + '</p>' : '') + '</aside>';
+    }
+    if (trimmed.startsWith('>')) return '<blockquote>' + trimmed.split(/\n/).map((line) => renderInlineMarkdown(line.replace(/^>\s?/, ''))).join('<br>') + '</blockquote>';
     if (/^###\s+/.test(trimmed)) return '<h4>' + renderInlineMarkdown(trimmed.replace(/^###\s+/, '')) + '</h4>';
     if (/^##\s+/.test(trimmed)) return '<h3>' + renderInlineMarkdown(trimmed.replace(/^##\s+/, '')) + '</h3>';
     if (/^#\s+/.test(trimmed)) return '<h2>' + renderInlineMarkdown(trimmed.replace(/^#\s+/, '')) + '</h2>';
-    if (trimmed.startsWith('- ')) return '<ul>' + trimmed.split(/\n/).map((line) => '<li>' + renderInlineMarkdown(line.replace(/^[-*]\s+/, '')) + '</li>').join('') + '</ul>';
+    if (/^[-*]\s+/.test(trimmed)) return '<ul>' + trimmed.split(/\n/).map((line) => '<li>' + renderInlineMarkdown(line.replace(/^[-*]\s+(?:\[[ x]\]\s*)?/, '')) + '</li>').join('') + '</ul>';
+    if (/^\d+\.\s+/.test(trimmed)) return '<ol>' + trimmed.split(/\n/).map((line) => '<li>' + renderInlineMarkdown(line.replace(/^\d+\.\s+/, '')) + '</li>').join('') + '</ol>';
+    if (/^-{3,}$/.test(trimmed)) return '<hr>';
     return '<p>' + renderInlineMarkdown(trimmed).replace(/\n/g, '<br>') + '</p>';
   }).join('');
 }

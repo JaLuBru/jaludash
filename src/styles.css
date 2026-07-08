@@ -853,13 +853,60 @@ button, input { font: inherit; }
 }
 
 .wiki-markdown p,
-.wiki-markdown ul {
+.wiki-markdown ul,
+.wiki-markdown ol {
   margin: 0;
+}
+
+.wiki-markdown ul,
+.wiki-markdown ol {
+  padding-left: 22px;
+}
+
+.wiki-markdown li + li {
+  margin-top: 4px;
 }
 
 .wiki-markdown a {
   color: var(--accent);
   font-weight: 750;
+}
+
+.wiki-markdown code {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--soft);
+  font-size: .9em;
+}
+
+.wiki-markdown blockquote,
+.wiki-markdown .callout {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+}
+
+.wiki-markdown .callout {
+  display: grid;
+  gap: 6px;
+}
+
+.wiki-markdown .callout strong {
+  text-transform: uppercase;
+  font-size: .78rem;
+}
+
+.wiki-markdown .callout p {
+  margin: 0;
+}
+
+.wiki-markdown hr {
+  width: 100%;
+  height: 1px;
+  border: 0;
+  background: var(--line);
 }
 
 .empty-doc {

@@ -1792,28 +1792,146 @@ export const serviceDocs = {
   },
   "portainer-optipi": {
     "serviceId": "portainer-optipi",
-    "sourceFile": "Generated: Portainer",
+    "sourceFile": "Portainer.md",
     "title": "Portainer",
     "frontmatter": {
-      "source": "generated fallback",
-      "status": "needs Obsidian note"
+      "tags": [
+        "Homelab/Utilities"
+      ],
+      "ITname": "Portainer",
+      "ITcategory": "Docker",
+      "ITmachine": [
+        "OptiPi",
+        "Raspberry Pi"
+      ],
+      "ITinstalltype": "docker",
+      "ITstatus": "installed"
     },
-    "summary": "Portainer Portainer is the Docker management UI for the OptiPi Docker LXC. Use it to inspect containers, images, logs, compose stacks, volumes, and networks. Runbook",
-    "links": [],
-    "codeBlocks": [],
-    "markdown": "## Portainer\n\nPortainer is the Docker management UI for the OptiPi Docker LXC. Use it to inspect containers, images, logs, compose stacks, volumes, and networks.\n\n### Runbook\n\n- Open Portainer from the service directory.\n- Check the container state and logs if a Docker service is unavailable.\n- Redeploy a stack after updating its compose file on the server.\n\n### Secret handling\n\nDo not store Portainer passwords or tokens in Obsidian or Git. Keep credentials in the password manager and only document where they are used."
+    "summary": "Portainer [Portainer Install Ubuntu tutorial - manage your docker containers](https://www.youtube.com/watch?v=ljDI5jykjE8) Installation",
+    "links": [
+      {
+        "label": "Portainer Install Ubuntu tutorial - manage your docker containers",
+        "url": "https://www.youtube.com/watch?v=ljDI5jykjE8"
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "docker volume create portainer_data"
+      },
+      {
+        "language": "bash",
+        "code": "docker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest"
+      },
+      {
+        "language": "yaml",
+        "code": "services:\n  portainer:\n    image: portainer/portainer-ce:latest\n    container_name: portainer\n    networks:\n      - proxy\n    ports:\n      - \"8000:8000\"\n      - \"9000:9000\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - portainer_data:/data\n    restart: always\n\nnetworks:\n  proxy:\n    external: true\n\nvolumes:\n  portainer_data:"
+      },
+      {
+        "language": "http://192.168.0.195:9000/ ```",
+        "code": "---\n### Update\nTo update to the latest version of Portainer Server, use the following commands to stop then remove the old version. Your other applications/containers will not be removed."
+      },
+      {
+        "language": "text",
+        "code": ""
+      },
+      {
+        "language": "text",
+        "code": "Now that you have stopped and removed the old version of Portainer, you must ensure that you have the most up to date version of the image locally. You can do this with a `docker pull` command:"
+      },
+      {
+        "language": "text",
+        "code": "Finally, deploy the updated version of Portainer:"
+      },
+      {
+        "language": "text",
+        "code": "---\n\n**NOT IN USE**\n\nAfter installing Nginx Proxy Manager \n\nstop and remove the portainer"
+      },
+      {
+        "language": "text",
+        "code": ""
+      },
+      {
+        "language": "text",
+        "code": "find the proxy managers network"
+      },
+      {
+        "language": "text",
+        "code": "deploy the portainer again without opening port 9000 and with the proxy managers network"
+      }
+    ],
+    "markdown": "## Portainer\n\n---\n[Portainer Install Ubuntu tutorial - manage your docker containers](https://www.youtube.com/watch?v=ljDI5jykjE8)\n\n---\n\n### Installation\n\ncreate a new docker volume to store portainer data\n```bash\ndocker volume create portainer_data\n```\n\nlaunch portainer ADD NGINX NETWORK!\n```bash\ndocker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest\n```\n\n```yaml\nservices:\n  portainer:\n    image: portainer/portainer-ce:latest\n    container_name: portainer\n    networks:\n      - proxy\n    ports:\n      - \"8000:8000\"\n      - \"9000:9000\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - portainer_data:/data\n    restart: always\n\nnetworks:\n  proxy:\n    external: true\n\nvolumes:\n  portainer_data:\n```\n\nchange \"published ports\" IP\n1. go to \"Environment\"\n2. change \"Public IP\"\n\nconnect to portainer via port 9000\n```http://192.168.0.195:9000/ ```\n\n---\n### Update\nTo update to the latest version of Portainer Server, use the following commands to stop then remove the old version. Your other applications/containers will not be removed.\n\n```\ndocker stop portainer\n```\n\n```\ndocker rm portainer\n```\n\nNow that you have stopped and removed the old version of Portainer, you must ensure that you have the most up to date version of the image locally. You can do this with a `docker pull` command:\n\n```\ndocker pull portainer/portainer-ce:lts\n```\n\nFinally, deploy the updated version of Portainer:\n\n```\ndocker run -d -p 8000:8000 -p 9443:9443 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:lts\n```\n\n---\n\n**NOT IN USE**\n\nAfter installing Nginx Proxy Manager \n\nstop and remove the portainer\n```bash\ndocker stop portainer\n```\n\n```bash\ndocker rm portainer\n```\n\nfind the proxy managers network \n```bash\ndocker network ls\n```\n\ndeploy the portainer again without opening port 9000 and with the proxy managers network\n```bash\ndocker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce\n```\n\n---\n>home"
   },
   "portainer-serverpi": {
     "serviceId": "portainer-serverpi",
-    "sourceFile": "Generated: Portainer",
+    "sourceFile": "Portainer.md",
     "title": "Portainer",
     "frontmatter": {
-      "source": "generated fallback",
-      "status": "needs Obsidian note"
+      "tags": [
+        "Homelab/Utilities"
+      ],
+      "ITname": "Portainer",
+      "ITcategory": "Docker",
+      "ITmachine": [
+        "OptiPi",
+        "Raspberry Pi"
+      ],
+      "ITinstalltype": "docker",
+      "ITstatus": "installed"
     },
-    "summary": "Portainer Portainer is the Docker management UI for the Raspberry Pi. Use it to inspect the media download stack, container logs, volumes, networks, and update state. Runbook",
-    "links": [],
-    "codeBlocks": [],
-    "markdown": "## Portainer\n\nPortainer is the Docker management UI for the Raspberry Pi. Use it to inspect the media download stack, container logs, volumes, networks, and update state.\n\n### Runbook\n\n- Open Portainer from the service directory.\n- Check the media stack containers when downloads or media automation stop working.\n- Redeploy a stack after updating its compose file on the Raspberry Pi.\n\n### Secret handling\n\nDo not store Portainer passwords or tokens in Obsidian or Git. Keep credentials in the password manager and only document where they are used."
+    "summary": "Portainer [Portainer Install Ubuntu tutorial - manage your docker containers](https://www.youtube.com/watch?v=ljDI5jykjE8) Installation",
+    "links": [
+      {
+        "label": "Portainer Install Ubuntu tutorial - manage your docker containers",
+        "url": "https://www.youtube.com/watch?v=ljDI5jykjE8"
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "docker volume create portainer_data"
+      },
+      {
+        "language": "bash",
+        "code": "docker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest"
+      },
+      {
+        "language": "yaml",
+        "code": "services:\n  portainer:\n    image: portainer/portainer-ce:latest\n    container_name: portainer\n    networks:\n      - proxy\n    ports:\n      - \"8000:8000\"\n      - \"9000:9000\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - portainer_data:/data\n    restart: always\n\nnetworks:\n  proxy:\n    external: true\n\nvolumes:\n  portainer_data:"
+      },
+      {
+        "language": "http://192.168.0.195:9000/ ```",
+        "code": "---\n### Update\nTo update to the latest version of Portainer Server, use the following commands to stop then remove the old version. Your other applications/containers will not be removed."
+      },
+      {
+        "language": "text",
+        "code": ""
+      },
+      {
+        "language": "text",
+        "code": "Now that you have stopped and removed the old version of Portainer, you must ensure that you have the most up to date version of the image locally. You can do this with a `docker pull` command:"
+      },
+      {
+        "language": "text",
+        "code": "Finally, deploy the updated version of Portainer:"
+      },
+      {
+        "language": "text",
+        "code": "---\n\n**NOT IN USE**\n\nAfter installing Nginx Proxy Manager \n\nstop and remove the portainer"
+      },
+      {
+        "language": "text",
+        "code": ""
+      },
+      {
+        "language": "text",
+        "code": "find the proxy managers network"
+      },
+      {
+        "language": "text",
+        "code": "deploy the portainer again without opening port 9000 and with the proxy managers network"
+      }
+    ],
+    "markdown": "## Portainer\n\n---\n[Portainer Install Ubuntu tutorial - manage your docker containers](https://www.youtube.com/watch?v=ljDI5jykjE8)\n\n---\n\n### Installation\n\ncreate a new docker volume to store portainer data\n```bash\ndocker volume create portainer_data\n```\n\nlaunch portainer ADD NGINX NETWORK!\n```bash\ndocker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest\n```\n\n```yaml\nservices:\n  portainer:\n    image: portainer/portainer-ce:latest\n    container_name: portainer\n    networks:\n      - proxy\n    ports:\n      - \"8000:8000\"\n      - \"9000:9000\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - portainer_data:/data\n    restart: always\n\nnetworks:\n  proxy:\n    external: true\n\nvolumes:\n  portainer_data:\n```\n\nchange \"published ports\" IP\n1. go to \"Environment\"\n2. change \"Public IP\"\n\nconnect to portainer via port 9000\n```http://192.168.0.195:9000/ ```\n\n---\n### Update\nTo update to the latest version of Portainer Server, use the following commands to stop then remove the old version. Your other applications/containers will not be removed.\n\n```\ndocker stop portainer\n```\n\n```\ndocker rm portainer\n```\n\nNow that you have stopped and removed the old version of Portainer, you must ensure that you have the most up to date version of the image locally. You can do this with a `docker pull` command:\n\n```\ndocker pull portainer/portainer-ce:lts\n```\n\nFinally, deploy the updated version of Portainer:\n\n```\ndocker run -d -p 8000:8000 -p 9443:9443 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:lts\n```\n\n---\n\n**NOT IN USE**\n\nAfter installing Nginx Proxy Manager \n\nstop and remove the portainer\n```bash\ndocker stop portainer\n```\n\n```bash\ndocker rm portainer\n```\n\nfind the proxy managers network \n```bash\ndocker network ls\n```\n\ndeploy the portainer again without opening port 9000 and with the proxy managers network\n```bash\ndocker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce\n```\n\n---\n>home"
   }
 };

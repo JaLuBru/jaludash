@@ -847,7 +847,13 @@ function renderMarkdown(markdown) {
     codeBlocks.push({ language: language || 'text', code: code.trim() });
     return '\n@@CODE_BLOCK_' + id + '@@\n';
   })).replace(/^---$/gm, '');
-  return withoutCode.split(/\n{2,}/).map((block) => {
+  const normalized = withoutCode
+    .replace(/(^|\n)(#{1,4}\s+[^\n]+)(?=\n|$)/g, '\n\n$2\n\n')
+    .replace(/(^|\n)(@@CODE_BLOCK_\d+@@)(?=\n|$)/g, '\n\n$2\n\n')
+    .replace(/(^|\n)(-{3,})(?=\n|$)/g, '\n\n$2\n\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return normalized.split(/\n{2,}/).map((block) => {
     const trimmed = block.trim();
     if (!trimmed) return '';
     const codeMatch = trimmed.match(/^@@CODE_BLOCK_(\d+)@@$/);

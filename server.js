@@ -157,6 +157,7 @@ function serviceFromInput(input, existing) {
       importance,
       url: url || null,
       checkUrl: checkUrl || null,
+      iconUrl: cleanUrl(input.iconUrl) || null,
       purpose: cleanText(input.purpose, 260),
       host,
       category,

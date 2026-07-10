@@ -49,6 +49,31 @@ const state = {
   savingService: false,
   deletingServiceId: ""
 };
+const iconSlugs = {
+  homeassistant: "home-assistant",
+  plex: "plex",
+  "portainer-optipi": "portainer",
+  "portainer-serverpi": "portainer",
+  "watchtower-optipi": "watchtower",
+  "watchtower-serverpi": "watchtower",
+  teleport: "teleport",
+  traefik: "traefik",
+  cloudflaretunnel: "cloudflare",
+  pihole: "pi-hole",
+  mealie: "mealie",
+  homebox: "homebox",
+  convertx: "convertx",
+  "it-tools": "it-tools",
+  twitchbot: "twitch",
+  sabnzbd: "sabnzbd",
+  qbittorrent: "qbittorrent",
+  radarr: "radarr",
+  sonarr: "sonarr",
+  bazarr: "bazarr",
+  prowlarr: "prowlarr",
+  tautulli: "tautulli",
+  nginxproxymanager: "nginx-proxy-manager"
+};
 const app = document.querySelector("#app");
 const fencePattern = new RegExp(String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96) + "([^\\n]*)\\n([\\s\\S]*?)" + String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96), "g");
 
@@ -101,6 +126,29 @@ function applyTheme() {
 
 function escapeHtml(value) {
   return String(value || "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character]);
+}
+
+function selfhstIconUrl(slug) {
+  if (!slug) return "";
+  const variant = state.theme === "dark" ? "light" : "dark";
+  return "https://cdn.jsdelivr.net/gh/selfhst/icons@main/svg/" + encodeURIComponent(slug) + "-" + variant + ".svg";
+}
+
+function guessedIconSlug(service) {
+  return String((service && (service.name || service.id)) || "").toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function serviceIconUrl(service) {
+  if (!service) return "";
+  return service.iconUrl || selfhstIconUrl(iconSlugs[service.id] || guessedIconSlug(service));
+}
+
+function serviceIcon(service) {
+  const url = serviceIconUrl(service);
+  const label = String((service && service.name) || "?").trim();
+  const initials = (label.match(/[A-Za-z0-9]/g) || ["?"]).slice(0, 2).join("").toUpperCase();
+  if (!url) return '<span class="service-icon fallback">' + escapeHtml(initials) + '</span>';
+  return '<span class="service-icon-wrap"><img class="service-icon" src="' + escapeHtml(url) + '" alt="" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false" /><span class="service-icon fallback" hidden>' + escapeHtml(initials) + '</span></span>';
 }
 
 async function loadHostHealth() {
@@ -315,6 +363,7 @@ function discoveryToDraft(container) {
     checkUrl: url,
     host: "docker-lxc",
     category: "apps",
+    iconUrl: "",
     importance: "low",
     status: "documented",
     purpose: container.image ? "Container image: " + container.image : "",
@@ -323,7 +372,7 @@ function discoveryToDraft(container) {
 }
 
 function emptyServiceDraft() {
-  return { name: "", url: "", checkUrl: "", host: "docker-lxc", category: "apps", importance: "low", status: "documented", purpose: "" };
+  return { name: "", url: "", checkUrl: "", iconUrl: "", host: "docker-lxc", category: "apps", importance: "low", status: "documented", purpose: "" };
 }
 
 function discoveredServiceOptions() {
@@ -339,7 +388,7 @@ function findDiscoveredService(value) {
 function applyDraftToForm(draft, form) {
   if (!draft || !form) return;
   state.serviceDraft = Object.assign({}, state.serviceDraft || {}, draft);
-  ["name", "url", "checkUrl", "host", "category", "importance", "status", "purpose"].forEach((field) => {
+  ["name", "url", "checkUrl", "iconUrl", "host", "category", "importance", "status", "purpose"].forEach((field) => {
     if (form.elements[field]) form.elements[field].value = draft[field] || "";
   });
 }
@@ -431,7 +480,7 @@ function serviceModal() {
   const discovered = discoveredServiceOptions();
   const discoveredList = discovered.length ? '<datalist id="discovered-service-options">' + discovered.map((container) => '<option value="' + escapeHtml(container.name || container.id) + '">' + escapeHtml(container.image || container.status || 'Discovered service') + '</option>').join('') + '</datalist><p class="field-hint">Pick a discovered service here to prefill the form.</p>' : '';
   const nameList = discovered.length ? ' list="discovered-service-options"' : '';
-  return '<div class="modal-backdrop"><form class="service-modal" data-service-form="true"><div class="card-head"><div><p class="eyebrow">' + (draft.id ? 'Edit Service' : 'Add Service') + '</p><h2>Service details</h2></div><button type="button" class="icon-close" data-close-service-modal="true">Close</button></div>' + aiNote + '<label><span>Name</span><input name="name" data-service-name-input="true" required maxlength="120"' + nameList + ' value="' + escapeHtml(draft.name) + '" /></label>' + discoveredList + '<label><span>URL</span><input name="url" maxlength="300" placeholder="http://192.168.0.191:1234" value="' + escapeHtml(draft.url) + '" /></label><label><span>Check URL</span><input name="checkUrl" maxlength="300" value="' + escapeHtml(draft.checkUrl || draft.url || '') + '" /></label><div class="form-row"><label><span>Host</span><select name="host">' + hostOptions + '</select></label><label><span>Category</span><select name="category">' + categoryOptions + '</select></label></div><div class="form-row"><label><span>Importance</span><select name="importance">' + importanceOptions + '</select></label><label><span>Status</span><select name="status">' + statusOptions + '</select></label></div><label><span>Purpose</span><textarea name="purpose" rows="4" maxlength="260">' + escapeHtml(draft.purpose) + '</textarea></label><div class="modal-actions"><button class="primary-action" type="submit" ' + (state.savingService ? 'disabled' : '') + '>' + (state.savingService ? 'Saving...' : (draft.id ? 'Save changes' : 'Save service')) + '</button><button type="button" data-close-service-modal="true">Cancel</button></div>' + (draft.id ? '<div class="modal-danger-zone"><button type="button" class="danger" data-delete-service-from-modal="' + escapeHtml(draft.id) + '">Delete service</button></div>' : '') + (state.serviceSaveError ? '<p class="form-error">' + escapeHtml(state.serviceSaveError) + '</p>' : '') + '</form></div>';
+  return '<div class="modal-backdrop"><form class="service-modal" data-service-form="true"><div class="card-head"><div><p class="eyebrow">' + (draft.id ? 'Edit Service' : 'Add Service') + '</p><h2>Service details</h2></div><button type="button" class="icon-close" data-close-service-modal="true">Close</button></div>' + aiNote + '<label><span>Name</span><input name="name" data-service-name-input="true" required maxlength="120"' + nameList + ' value="' + escapeHtml(draft.name) + '" /></label>' + discoveredList + '<label><span>URL</span><input name="url" maxlength="300" placeholder="http://192.168.0.191:1234" value="' + escapeHtml(draft.url) + '" /></label><label><span>Check URL</span><input name="checkUrl" maxlength="300" value="' + escapeHtml(draft.checkUrl || draft.url || '') + '" /></label><label><span>Icon URL</span><input name="iconUrl" maxlength="400" placeholder="Optional custom SVG/PNG/WebP icon URL" value="' + escapeHtml(draft.iconUrl || '') + '" /></label><p class="field-hint">Leave empty to try the matching selfh.st SVG icon automatically.</p><div class="form-row"><label><span>Host</span><select name="host">' + hostOptions + '</select></label><label><span>Category</span><select name="category">' + categoryOptions + '</select></label></div><div class="form-row"><label><span>Importance</span><select name="importance">' + importanceOptions + '</select></label><label><span>Status</span><select name="status">' + statusOptions + '</select></label></div><label><span>Purpose</span><textarea name="purpose" rows="4" maxlength="260">' + escapeHtml(draft.purpose) + '</textarea></label><div class="modal-actions"><button class="primary-action" type="submit" ' + (state.savingService ? 'disabled' : '') + '>' + (state.savingService ? 'Saving...' : (draft.id ? 'Save changes' : 'Save service')) + '</button><button type="button" data-close-service-modal="true">Cancel</button></div>' + (draft.id ? '<div class="modal-danger-zone"><button type="button" class="danger" data-delete-service-from-modal="' + escapeHtml(draft.id) + '">Delete service</button></div>' : '') + (state.serviceSaveError ? '<p class="form-error">' + escapeHtml(state.serviceSaveError) + '</p>' : '') + '</form></div>';
 }
 
 function wireServiceModal() {
@@ -809,7 +858,7 @@ function serviceRow(service, group) {
   const editable = true;
   const statusLabel = service.status && service.status !== 'documented' ? '<span>' + escapeHtml(service.status) + '</span>' : '';
   const serviceActions = editable ? '<div class="service-edit-actions"><button type="button" data-edit-service="' + escapeHtml(service.id) + '">Edit</button>' + openLink(service) + '</div>' : openLink(service);
-  return '<div class="service-row service-row-expanded"><div class="service-name"><div class="service-title-line"><button class="service-title-button" type="button" data-service-id="' + escapeHtml(service.id) + '">' + escapeHtml(service.name) + '</button>' + statusChip(service.id) + '</div><span>' + [group.category, hostName(group.host)].filter(Boolean).map(escapeHtml).join(' / ') + '</span></div><div class="service-url">' + url + '</div><div class="service-context-badges">' + statusLabel + contextualBadges + '</div><div class="service-row-actions">' + serviceActions + '</div></div>';
+  return '<div class="service-row service-row-expanded"><div class="service-name"><div class="service-title-line">' + serviceIcon(service) + '<button class="service-title-button" type="button" data-service-id="' + escapeHtml(service.id) + '">' + escapeHtml(service.name) + '</button>' + statusChip(service.id) + '</div><span>' + [group.category, hostName(group.host)].filter(Boolean).map(escapeHtml).join(' / ') + '</span></div><div class="service-url">' + url + '</div><div class="service-context-badges">' + statusLabel + contextualBadges + '</div><div class="service-row-actions">' + serviceActions + '</div></div>';
 }
 
 function cleanObsidianText(value) {
@@ -877,11 +926,11 @@ function renderTable(block) {
 
 function renderMarkdown(markdown) {
   const codeBlocks = [];
-  const withoutCode = cleanObsidianText(String(markdown || '').replace(fencePattern, (match, language, code) => {
+  const withoutCode = String(markdown || '').replace(fencePattern, (match, language, code) => {
     const id = codeBlocks.length;
     codeBlocks.push({ language: language || 'text', code: code.trim() });
     return '\n@@CODE_BLOCK_' + id + '@@\n';
-  })).replace(/^---$/gm, '');
+  }).replace(/^---$/gm, '');
   const normalized = withoutCode
     .replace(/(^|\n)(#{1,6}\s+[^\n]+)(?=\n|$)/g, '\n\n$2\n\n')
     .replace(/(^|\n)(@@CODE_BLOCK_\d+@@)(?=\n|$)/g, '\n\n$2\n\n')
@@ -947,7 +996,7 @@ function serviceDetail() {
   const links = doc && doc.links.length ? doc.links.map((link) => '<a href="' + escapeHtml(link.url) + '" target="_blank" rel="noreferrer">' + escapeHtml(link.label) + '</a>').join('') : '<span class="muted">No links found in the Obsidian note.</span>';
   const runbookCommands = renderRunbookCommands(doc);
   const docsPanel = doc ? '<div class="wiki-content"><section class="wiki-main runbook-main"><div class="section-title"><p class="eyebrow">Service Notes</p><h2>Runbook</h2></div>' + runbookCommands + '</section><section class="wiki-main"><div class="section-title"><p class="eyebrow">Obsidian Note</p><h2>' + escapeHtml(doc.title) + '</h2></div><p class="source-file">' + escapeHtml(doc.sourceFile) + '</p><div class="wiki-markdown">' + renderMarkdown(doc.markdown) + '</div></section></div>' : (!serviceDocsLoaded ? '<section class="wiki-main empty-doc"><h2>Loading documentation</h2><p>The dashboard is loading service notes in the background.</p></section>' : '<section class="wiki-main empty-doc"><h2>No Obsidian note matched yet</h2><p>This service still has inventory data, but no app note was matched during import.</p></section>');
-  shell('<main class="page wiki-page"><button class="back-button" type="button" data-back-services="true">Back to services</button><section class="wiki-hero"><div><p class="eyebrow">' + (service ? 'Service Detail' : 'Documentation') + '</p><h2>' + escapeHtml(detail.name) + '</h2><p>' + escapeHtml(detail.groupPurpose || detail.purpose || 'No purpose documented yet.') + '</p></div><div class="wiki-actions">' + (service ? openLink(detail) + statusChip(detail.id) + badge(detail.importance, detail.importance) + (detail.status && detail.status !== 'documented' ? badge(detail.status) : '') : badge('docs')) + '</div></section><section class="wiki-layout"><aside class="wiki-side"><div class="wiki-box"><h3>Inventory</h3><div class="fact-list"><div><span>Stack</span><strong>' + escapeHtml(detail.group) + '</strong></div><div><span>Runs on</span><strong>' + escapeHtml(hostName(detail.groupHost)) + '</strong></div><div><span>Physical host</span><strong>' + escapeHtml(hostName(detail.parentHost)) + '</strong></div><div><span>Category</span><strong>' + escapeHtml(detail.category) + '</strong></div><div><span>URL</span><strong>' + escapeHtml(detail.url || 'No URL yet') + '</strong></div>' + (service ? '<div><span>Status detail</span><strong>' + escapeHtml(statusMeta(detail.id)) + '</strong></div>' : '<div><span>Source</span><strong>' + escapeHtml(doc.sourceFile || 'Generated') + '</strong></div>') + '</div></div><div class="wiki-box link-list"><h3>Links</h3>' + links + '</div></aside>' + docsPanel + '</section></main>');
+  shell('<main class="page wiki-page"><button class="back-button" type="button" data-back-services="true">Back to services</button><section class="wiki-hero"><div><p class="eyebrow">' + (service ? 'Service Detail' : 'Documentation') + '</p><div class="wiki-title-line">' + (service ? serviceIcon(detail) : '') + '<h2>' + escapeHtml(detail.name) + '</h2></div><p>' + escapeHtml(detail.groupPurpose || detail.purpose || 'No purpose documented yet.') + '</p></div><div class="wiki-actions">' + (service ? openLink(detail) + statusChip(detail.id) + badge(detail.importance, detail.importance) + (detail.status && detail.status !== 'documented' ? badge(detail.status) : '') : badge('docs')) + '</div></section><section class="wiki-layout"><aside class="wiki-side"><div class="wiki-box"><h3>Inventory</h3><div class="fact-list"><div><span>Stack</span><strong>' + escapeHtml(detail.group) + '</strong></div><div><span>Runs on</span><strong>' + escapeHtml(hostName(detail.groupHost)) + '</strong></div><div><span>Physical host</span><strong>' + escapeHtml(hostName(detail.parentHost)) + '</strong></div><div><span>Category</span><strong>' + escapeHtml(detail.category) + '</strong></div><div><span>URL</span><strong>' + escapeHtml(detail.url || 'No URL yet') + '</strong></div>' + (service ? '<div><span>Status detail</span><strong>' + escapeHtml(statusMeta(detail.id)) + '</strong></div>' : '<div><span>Source</span><strong>' + escapeHtml(doc.sourceFile || 'Generated') + '</strong></div>') + '</div></div><div class="wiki-box link-list"><h3>Links</h3>' + links + '</div></aside>' + docsPanel + '</section></main>');
   const back = document.querySelector('[data-back-services]');
   if (back) back.addEventListener('click', () => { state.view = 'services'; render(); });
   document.querySelectorAll('[data-doc-link]').forEach((button) => button.addEventListener('click', () => {

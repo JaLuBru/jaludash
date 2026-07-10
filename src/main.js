@@ -893,7 +893,7 @@ function docLink(label, target) {
 
 function renderInlineMarkdown(value) {
   const placeholders = [];
-  const withDocLinks = String(value || '').replace(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g, (match, target, label) => {
+  const withDocLinks = String(value || '').replace(/\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g, (match, target, label) => {
     const shown = label || target;
     const id = docLinkTarget(shown) || docLinkTarget(target);
     const token = '@@DOC_LINK_' + placeholders.length + '@@';

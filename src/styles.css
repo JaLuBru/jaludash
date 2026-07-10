@@ -285,6 +285,10 @@ button, input { font: inherit; }
   font-weight: 900;
 }
 
+.service-icon.fallback[hidden] {
+  display: none !important;
+}
+
 .wiki-title-line {
   display: flex;
   align-items: center;

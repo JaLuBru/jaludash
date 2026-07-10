@@ -253,6 +253,50 @@ button, input { font: inherit; }
 .service-row:last-child { border-bottom: 0; }
 .service-row div { display: grid; gap: 2px; }
 .service-row span { color: var(--muted); font-size: .84rem; }
+.service-title-line {
+  display: flex !important;
+  align-items: center;
+  gap: 8px !important;
+  min-width: 0;
+}
+
+.service-icon-wrap {
+  display: inline-grid !important;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+}
+
+.service-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.service-icon.fallback {
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: .62rem !important;
+  font-weight: 900;
+}
+
+.wiki-title-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wiki-title-line .service-icon,
+.wiki-title-line .service-icon-wrap {
+  width: 34px;
+  height: 34px;
+  flex-basis: 34px;
+}
 .open {
   display: inline-flex;
   align-items: center;

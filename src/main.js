@@ -819,12 +819,47 @@ function cleanObsidianText(value) {
     .replace(/\[\[([^\]]+)\]\]/g, '$1');
 }
 
+function docLinkTarget(label) {
+  const key = String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const targets = {
+    torrent: 'qbittorrent',
+    torrents: 'qbittorrent',
+    qbittorrent: 'qbittorrent',
+    nzb: 'sabnzbd',
+    nzbs: 'sabnzbd',
+    sabnzbd: 'sabnzbd',
+    sabnzb: 'sabnzbd',
+    mediaserver: 'mediaserver',
+    mediastack: 'mediaserver',
+    dockercompose: 'mediaserver'
+  };
+  return targets[key] || '';
+}
+
+function docLink(label, target) {
+  const id = target || docLinkTarget(label);
+  if (!id) return escapeHtml(label);
+  return '<button class="doc-link" type="button" data-doc-link="' + escapeHtml(id) + '">' + escapeHtml(label) + '</button>';
+}
+
 function renderInlineMarkdown(value) {
-  return escapeHtml(cleanObsidianText(value))
+  const placeholders = [];
+  const withDocLinks = String(value || '').replace(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g, (match, target, label) => {
+    const shown = label || target;
+    const id = docLinkTarget(shown) || docLinkTarget(target);
+    const token = '@@DOC_LINK_' + placeholders.length + '@@';
+    placeholders.push(docLink(shown, id));
+    return token;
+  });
+  let rendered = escapeHtml(cleanObsidianText(withDocLinks))
+    .replace(/!\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy" />')
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/~~([^~]+)~~/g, '<del>$1</del>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  placeholders.forEach((html, index) => { rendered = rendered.replace('@@DOC_LINK_' + index + '@@', html); });
+  return rendered;
 }
 
 function isMarkdownTable(block) {
@@ -848,7 +883,7 @@ function renderMarkdown(markdown) {
     return '\n@@CODE_BLOCK_' + id + '@@\n';
   })).replace(/^---$/gm, '');
   const normalized = withoutCode
-    .replace(/(^|\n)(#{1,4}\s+[^\n]+)(?=\n|$)/g, '\n\n$2\n\n')
+    .replace(/(^|\n)(#{1,6}\s+[^\n]+)(?=\n|$)/g, '\n\n$2\n\n')
     .replace(/(^|\n)(@@CODE_BLOCK_\d+@@)(?=\n|$)/g, '\n\n$2\n\n')
     .replace(/(^|\n)(-{3,})(?=\n|$)/g, '\n\n$2\n\n')
     .replace(/\n{3,}/g, '\n\n')
@@ -869,6 +904,9 @@ function renderMarkdown(markdown) {
       return '<aside class="callout"><strong>' + renderInlineMarkdown(title || 'Note') + '</strong>' + (body ? '<p>' + body + '</p>' : '') + '</aside>';
     }
     if (trimmed.startsWith('>')) return '<blockquote>' + trimmed.split(/\n/).map((line) => renderInlineMarkdown(line.replace(/^>\s?/, ''))).join('<br>') + '</blockquote>';
+    if (/^######\s+/.test(trimmed)) return '<h6>' + renderInlineMarkdown(trimmed.replace(/^######\s+/, '')) + '</h6>';
+    if (/^#####\s+/.test(trimmed)) return '<h6>' + renderInlineMarkdown(trimmed.replace(/^#####\s+/, '')) + '</h6>';
+    if (/^####\s+/.test(trimmed)) return '<h5>' + renderInlineMarkdown(trimmed.replace(/^####\s+/, '')) + '</h5>';
     if (/^###\s+/.test(trimmed)) return '<h4>' + renderInlineMarkdown(trimmed.replace(/^###\s+/, '')) + '</h4>';
     if (/^##\s+/.test(trimmed)) return '<h3>' + renderInlineMarkdown(trimmed.replace(/^##\s+/, '')) + '</h3>';
     if (/^#\s+/.test(trimmed)) return '<h2>' + renderInlineMarkdown(trimmed.replace(/^#\s+/, '')) + '</h2>';
@@ -903,15 +941,20 @@ function renderRunbookCommands(doc) {
 
 function serviceDetail() {
   const service = findService(state.selectedServiceId);
-  if (!service) { state.view = 'services'; return serviceDirectory(); }
-  const doc = serviceDocs[service.id];
-  const issues = serviceIssues(service);
+  const doc = service ? serviceDocs[service.id] : serviceDocs[state.selectedServiceId];
+  if (!service && !doc) { state.view = 'services'; return serviceDirectory(); }
+  const detail = service || { id: state.selectedServiceId, name: doc.title, group: 'Documentation', groupHost: 'Documentation', parentHost: 'Documentation', category: 'Docs', importance: 'low', status: 'documented', url: '', purpose: doc.summary || 'Imported documentation.' };
   const links = doc && doc.links.length ? doc.links.map((link) => '<a href="' + escapeHtml(link.url) + '" target="_blank" rel="noreferrer">' + escapeHtml(link.label) + '</a>').join('') : '<span class="muted">No links found in the Obsidian note.</span>';
   const runbookCommands = renderRunbookCommands(doc);
   const docsPanel = doc ? '<div class="wiki-content"><section class="wiki-main runbook-main"><div class="section-title"><p class="eyebrow">Service Notes</p><h2>Runbook</h2></div>' + runbookCommands + '</section><section class="wiki-main"><div class="section-title"><p class="eyebrow">Obsidian Note</p><h2>' + escapeHtml(doc.title) + '</h2></div><p class="source-file">' + escapeHtml(doc.sourceFile) + '</p><div class="wiki-markdown">' + renderMarkdown(doc.markdown) + '</div></section></div>' : (!serviceDocsLoaded ? '<section class="wiki-main empty-doc"><h2>Loading documentation</h2><p>The dashboard is loading service notes in the background.</p></section>' : '<section class="wiki-main empty-doc"><h2>No Obsidian note matched yet</h2><p>This service still has inventory data, but no app note was matched during import.</p></section>');
-  shell('<main class="page wiki-page"><button class="back-button" type="button" data-back-services="true">Back to services</button><section class="wiki-hero"><div><p class="eyebrow">Service Detail</p><h2>' + escapeHtml(service.name) + '</h2><p>' + escapeHtml(service.groupPurpose || service.purpose || 'No purpose documented yet.') + '</p></div><div class="wiki-actions">' + openLink(service) + statusChip(service.id) + badge(service.importance, service.importance) + (service.status && service.status !== 'documented' ? badge(service.status) : '') + '</div></section><section class="wiki-layout"><aside class="wiki-side"><div class="wiki-box"><h3>Inventory</h3><div class="fact-list"><div><span>Stack</span><strong>' + escapeHtml(service.group) + '</strong></div><div><span>Runs on</span><strong>' + escapeHtml(hostName(service.groupHost)) + '</strong></div><div><span>Physical host</span><strong>' + escapeHtml(hostName(service.parentHost)) + '</strong></div><div><span>Category</span><strong>' + escapeHtml(service.category) + '</strong></div><div><span>URL</span><strong>' + escapeHtml(service.url || 'No URL yet') + '</strong></div><div><span>Status detail</span><strong>' + escapeHtml(statusMeta(service.id)) + '</strong></div></div></div><div class="wiki-box"><h3>Documentation status</h3><div class="issue-row wiki-issues">' + (issues.length ? issues.map((issue) => '<span>' + escapeHtml(issue) + '</span>').join('') : '<span>Looks documented</span>') + '</div></div><div class="wiki-box"><h3>Obsidian metadata</h3><div class="fact-list">' + (doc ? frontmatterRows(doc.frontmatter) : '<div><span>source</span><strong>Not matched</strong></div>') + '</div></div><div class="wiki-box link-list"><h3>Links</h3>' + links + '</div></aside>' + docsPanel + '</section></main>');
+  shell('<main class="page wiki-page"><button class="back-button" type="button" data-back-services="true">Back to services</button><section class="wiki-hero"><div><p class="eyebrow">' + (service ? 'Service Detail' : 'Documentation') + '</p><h2>' + escapeHtml(detail.name) + '</h2><p>' + escapeHtml(detail.groupPurpose || detail.purpose || 'No purpose documented yet.') + '</p></div><div class="wiki-actions">' + (service ? openLink(detail) + statusChip(detail.id) + badge(detail.importance, detail.importance) + (detail.status && detail.status !== 'documented' ? badge(detail.status) : '') : badge('docs')) + '</div></section><section class="wiki-layout"><aside class="wiki-side"><div class="wiki-box"><h3>Inventory</h3><div class="fact-list"><div><span>Stack</span><strong>' + escapeHtml(detail.group) + '</strong></div><div><span>Runs on</span><strong>' + escapeHtml(hostName(detail.groupHost)) + '</strong></div><div><span>Physical host</span><strong>' + escapeHtml(hostName(detail.parentHost)) + '</strong></div><div><span>Category</span><strong>' + escapeHtml(detail.category) + '</strong></div><div><span>URL</span><strong>' + escapeHtml(detail.url || 'No URL yet') + '</strong></div>' + (service ? '<div><span>Status detail</span><strong>' + escapeHtml(statusMeta(detail.id)) + '</strong></div>' : '<div><span>Source</span><strong>' + escapeHtml(doc.sourceFile || 'Generated') + '</strong></div>') + '</div></div><div class="wiki-box link-list"><h3>Links</h3>' + links + '</div></aside>' + docsPanel + '</section></main>');
   const back = document.querySelector('[data-back-services]');
   if (back) back.addEventListener('click', () => { state.view = 'services'; render(); });
+  document.querySelectorAll('[data-doc-link]').forEach((button) => button.addEventListener('click', () => {
+    state.selectedServiceId = button.dataset.docLink;
+    state.view = 'service-detail';
+    render();
+  }));
   document.querySelectorAll('[data-copy-code]').forEach((button) => button.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();

@@ -848,7 +848,9 @@ button, input { font: inherit; }
 
 .wiki-markdown h2,
 .wiki-markdown h3,
-.wiki-markdown h4 {
+.wiki-markdown h4,
+.wiki-markdown h5,
+.wiki-markdown h6 {
   margin: 14px 0 0;
 }
 
@@ -870,6 +872,29 @@ button, input { font: inherit; }
 .wiki-markdown a {
   color: var(--accent);
   font-weight: 750;
+}
+
+.wiki-markdown img {
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.doc-link {
+  display: inline;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.doc-link:hover {
+  color: #1f3656;
 }
 
 .wiki-markdown code {

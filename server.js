@@ -940,7 +940,7 @@ const server = http.createServer((req, res) => {
   const requested = urlPath === "/" ? "/index.html" : urlPath;
   const filePath = path.normalize(path.join(root, requested));
 
-  if (!filePath.startsWith(root)) {
+  if (filePath !== root && !filePath.startsWith(root + path.sep)) {
     res.writeHead(403);
     res.end("Forbidden");
     return;

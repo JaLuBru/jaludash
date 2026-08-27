@@ -97,23 +97,34 @@ async function copyToClipboard(text, button) {
     setTimeout(() => { button.textContent = original; }, 1200);
   };
 
+  // Try the modern Clipboard API first regardless of isSecureContext: some browsers (notably
+  // iOS Safari over a plain-HTTP LAN address) still expose it even outside a secure context.
+  // It matters beyond convenience — the execCommand/hidden-textarea fallback below is the same
+  // DOM pattern "ClickFix" clipboard-hijack attacks use, so content blockers like uBlock Origin
+  // flag it, which is exactly what breaks copying shell one-liners on iPhone. Serving this
+  // dashboard over its https://*.local.jalubru.com URL instead of a bare http:// IP makes
+  // isSecureContext true and avoids the fallback entirely.
   try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.setAttribute("readonly", "");
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      textarea.style.top = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      textarea.setSelectionRange(0, textarea.value.length);
-      const copied = document.execCommand("copy");
-      textarea.remove();
-      if (!copied) throw new Error("copy command failed");
-    }
+    await navigator.clipboard.writeText(text);
+    showResult("Copied");
+    return;
+  } catch (error) {
+    // fall through to the legacy fallback below
+  }
+
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    if (!copied) throw new Error("copy command failed");
     showResult("Copied");
   } catch (error) {
     showResult("Copy failed");
@@ -888,7 +899,8 @@ function renderMarkdown(markdown) {
     const codeMatch = trimmed.match(/^@@CODE_BLOCK_(\d+)@@$/);
     if (codeMatch) {
       const item = codeBlocks[Number(codeMatch[1])];
-      return '<pre><code>' + escapeHtml(item.code) + '</code></pre>';
+      const encoded = encodeURIComponent(item.code);
+      return '<details class="code-detail" open><summary><span>' + escapeHtml(item.language) + '</span><button type="button" class="copy-code" data-copy-code="' + encoded + '">Copy</button></summary><pre><code>' + escapeHtml(item.code) + '</code></pre></details>';
     }
     if (isMarkdownTable(trimmed)) return renderTable(trimmed);
     if (/^>\s*\[![^\]]+\]/.test(trimmed)) {

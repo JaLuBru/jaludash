@@ -16,6 +16,16 @@
   --low-soft: #e1ead4;
   --accent: #2458a6;
   --shadow: 0 12px 30px rgba(28, 34, 45, 0.08);
+  /* Aliases: some later components (modal, trend cards, edit buttons) were written
+     against these names instead of the tokens above. Kept as aliases rather than
+     rewriting every consumer, so both naming conventions resolve to the same colors. */
+  --surface: var(--panel);
+  --surface-strong: var(--soft);
+  --soft-surface: var(--soft);
+  --text: var(--ink);
+  --border: var(--line);
+  --danger: var(--critical);
+  --input-bg: var(--panel);
 }
 
 * { box-sizing: border-box; }
@@ -548,6 +558,13 @@ button, input { font: inherit; }
   --low-soft: #2c3c25;
   --accent: #6ea6ff;
   --shadow: 0 12px 30px rgba(0, 0, 0, .26);
+  --surface: var(--panel);
+  --surface-strong: var(--soft);
+  --soft-surface: var(--soft);
+  --text: var(--ink);
+  --border: var(--line);
+  --danger: var(--critical);
+  --input-bg: var(--panel);
 }
 
 :root[data-theme="dark"] .topbar {
@@ -952,6 +969,17 @@ button, input { font: inherit; }
   font-size: .9em;
 }
 
+/* The rule above is for inline `code` spans. Without this, it also matches the <code>
+   inside <pre><code> blocks and paints its (theme-dependent, light-in-light-mode)
+   background over the block's own dark background — leaving light text on a light patch. */
+.code-detail pre code,
+.wiki-markdown pre code {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 1em;
+}
+
 .wiki-markdown blockquote,
 .wiki-markdown .callout {
   margin: 0;
@@ -1052,7 +1080,9 @@ button, input { font: inherit; }
 
 .wiki-content {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
+  min-width: 0;
 }
 
 .runbook-main {

@@ -310,7 +310,11 @@ function requestService(service, method) {
     const target = new URL(service.checkUrl || service.url);
     const client = target.protocol === "https:" ? httpsClient : httpClient;
     const started = Date.now();
-    const req = client.request(target, { method, timeout: Number(process.env.STATUS_TIMEOUT_MS || 4000), rejectUnauthorized: false }, (response) => {
+    // insecureHTTPParser: some embedded web servers (e.g. Pi-hole's FTL webserver) send
+    // framing that Node's strict parser rejects ("Parse Error: Data after `Connection: close`")
+    // even though the response is otherwise fine. This is a status-check client talking to
+    // known LAN devices, not a proxy handling untrusted traffic, so relaxing parsing here is safe.
+    const req = client.request(target, { method, timeout: Number(process.env.STATUS_TIMEOUT_MS || 4000), rejectUnauthorized: false, insecureHTTPParser: true }, (response) => {
       response.resume();
       response.on("end", () => {
         resolve({ statusCode: response.statusCode || 0, latencyMs: Date.now() - started });
@@ -326,8 +330,11 @@ function requestService(service, method) {
 
 async function checkHttpService(service) {
   try {
-    let response = await requestService(service, "HEAD");
-    if (response.statusCode === 405 || response.statusCode === 501) response = await requestService(service, "GET");
+    // GET, not HEAD: several embedded web servers in this homelab (Pi-hole's FTL webserver
+    // among them) respond to HEAD in ways Node's HTTP client can't parse cleanly. GET is the
+    // one every one of them handles correctly, and the extra response body is negligible for
+    // a LAN status check.
+    const response = await requestService(service, "GET");
     return {
       id: service.id,
       name: service.name,
@@ -496,7 +503,7 @@ async function fetchText(url) {
   return new Promise((resolve, reject) => {
     const target = new URL(url);
     const client = target.protocol === "https:" ? httpsClient : httpClient;
-    const req = client.request(target, { method: "GET", timeout: Number(process.env.STATUS_TIMEOUT_MS || 4000), rejectUnauthorized: false }, (response) => {
+    const req = client.request(target, { method: "GET", timeout: Number(process.env.STATUS_TIMEOUT_MS || 4000), rejectUnauthorized: false, insecureHTTPParser: true }, (response) => {
       let body = "";
       response.setEncoding("utf8");
       response.on("data", (chunk) => { body += chunk; if (body.length > 2_000_000) req.destroy(new Error("response too large")); });

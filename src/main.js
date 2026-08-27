@@ -1,5 +1,5 @@
-import { inventory } from "./inventory.js";
 const rank = { critical: 4, high: 3, medium: 2, low: 1 };
+const emptyInventory = { hosts: [], computeUnits: [], serviceGroups: [], concerns: [], plannedChanges: [] };
 let serviceDocs = {};
 let serviceDocsLoaded = false;
 let serviceDocsLoading = false;
@@ -36,8 +36,9 @@ const state = {
   proxmox: { configured: false, guests: [], checkedAt: "" },
   proxmoxLoading: false,
   proxmoxError: "",
-  customServices: [],
-  customGroups: [],
+  inventory: emptyInventory,
+  inventoryLoaded: false,
+  inventoryError: "",
   groupModalOpen: false,
   groupDraft: null,
   groupSaveError: "",
@@ -54,15 +55,14 @@ const iconSlugs = {
   plex: "plex",
   "portainer-optipi": "portainer",
   "portainer-serverpi": "portainer",
-  "watchtower-optipi": "watchtower",
-  "watchtower-serverpi": "watchtower",
-  teleport: "teleport",
+  "dockhand-optipi": "dockge",
+  "dockhand-serverpi": "dockge",
   traefik: "traefik",
-  cloudflaretunnel: "cloudflare",
   pihole: "pi-hole",
   mealie: "mealie",
   homebox: "homebox",
-  convertx: "convertx",
+  pullmd: "markdown",
+  jalubase: "postgresql",
   "it-tools": "it-tools",
   twitchbot: "twitch",
   sabnzbd: "sabnzbd",
@@ -72,7 +72,8 @@ const iconSlugs = {
   bazarr: "bazarr",
   prowlarr: "prowlarr",
   tautulli: "tautulli",
-  nginxproxymanager: "nginx-proxy-manager"
+  nginxproxymanager: "nginx-proxy-manager",
+  proxmox: "proxmox"
 };
 const app = document.querySelector("#app");
 const fencePattern = new RegExp(String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96) + "([^\\n]*)\\n([\\s\\S]*?)" + String.fromCharCode(96) + String.fromCharCode(96) + String.fromCharCode(96), "g");
@@ -331,25 +332,16 @@ function refreshStatusAndRender() {
   refreshLiveDataAndRender();
 }
 
-async function loadCustomServices() {
+async function loadInventory() {
   try {
-    const response = await fetch("/api/services");
+    const response = await fetch("/api/inventory");
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Service API unavailable");
-    state.customServices = Array.isArray(data.services) ? data.services : [];
+    if (!response.ok) throw new Error(data.error || "Inventory API unavailable");
+    state.inventory = Object.assign({}, emptyInventory, data);
+    state.inventoryLoaded = true;
+    state.inventoryError = "";
   } catch (error) {
-    state.serviceSaveError = error.message;
-  }
-}
-
-async function loadCustomGroups() {
-  try {
-    const response = await fetch("/api/groups");
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Group API unavailable");
-    state.customGroups = Array.isArray(data.groups) ? data.groups : [];
-  } catch (error) {
-    state.groupSaveError = error.message;
+    state.inventoryError = error.message;
   }
 }
 
@@ -431,11 +423,7 @@ async function saveService(form) {
     const response = await fetch(editingId ? "/api/services/" + encodeURIComponent(editingId) : "/api/services", { method: editingId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not save service.");
-    if (editingId) {
-      const index = state.customServices.findIndex((service) => service.id === editingId || service.overrideOf === editingId);
-      if (index === -1) state.customServices.unshift(data.service);
-      else state.customServices = state.customServices.map((service, serviceIndex) => serviceIndex === index ? data.service : service);
-    } else state.customServices.unshift(data.service);
+    await loadInventory();
     state.serviceModalOpen = false;
     state.serviceDraft = null;
     state.savingService = false;
@@ -457,9 +445,7 @@ async function deleteService(id) {
     const response = await fetch('/api/services/' + encodeURIComponent(id), { method: 'DELETE' });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Could not delete service.');
-    const index = state.customServices.findIndex((item) => item.id === id || item.overrideOf === id);
-    if (index === -1 && !service.dashboardAdded) state.customServices.unshift({ id, overrideOf: id, source: 'dashboard', deleted: true });
-    else state.customServices = state.customServices.filter((item) => item.id !== id && item.overrideOf !== id);
+    await loadInventory();
     state.deletingServiceId = '';
     refreshLiveDataAndRender();
   } catch (error) {
@@ -472,7 +458,7 @@ async function deleteService(id) {
 function serviceModal() {
   if (!state.serviceModalOpen) return "";
   const draft = state.serviceDraft || emptyServiceDraft();
-  const hostOptions = ["docker-lxc", "serverpi", "optipi", "plex-lxc", "pihole-lxc"].map((host) => '<option value="' + host + '" ' + (draft.host === host ? 'selected' : '') + '>' + escapeHtml(hostName(host)) + '</option>').join('');
+  const hostOptions = hostAndUnitOptions().map((option) => '<option value="' + option.id + '" ' + (draft.host === option.id ? 'selected' : '') + '>' + escapeHtml(option.label) + '</option>').join('');
   const categoryOptions = ["apps", "media", "management", "network", "home", "other"].map((category) => '<option value="' + category + '" ' + (draft.category === category ? 'selected' : '') + '>' + escapeHtml(category) + '</option>').join('');
   const importanceOptions = ["low", "medium", "high", "critical"].map((importance) => '<option value="' + importance + '" ' + (draft.importance === importance ? 'selected' : '') + '>' + escapeHtml(importance) + '</option>').join('');
   const statusOptions = ["documented", "planned", "unstable", "unknown"].map((status) => '<option value="' + status + '" ' + (draft.status === status ? 'selected' : '') + '>' + escapeHtml(status) + '</option>').join('');
@@ -531,9 +517,7 @@ async function saveGroup(form) {
     const response = await fetch(editingId ? "/api/groups/" + encodeURIComponent(editingId) : "/api/groups", { method: editingId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not save card.");
-    const index = state.customGroups.findIndex((group) => group.id === editingId || group.overrideOf === editingId);
-    if (editingId && index !== -1) state.customGroups = state.customGroups.map((group, groupIndex) => groupIndex === index ? data.group : group);
-    else state.customGroups.unshift(data.group);
+    await loadInventory();
     state.groupModalOpen = false;
     state.groupDraft = null;
     state.savingGroup = false;
@@ -555,11 +539,10 @@ async function deleteGroup(id) {
     const response = await fetch('/api/groups/' + encodeURIComponent(id), { method: 'DELETE' });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Could not delete card.');
-    const index = state.customGroups.findIndex((item) => item.id === id || item.overrideOf === id);
-    if (index === -1) state.customGroups.unshift({ id, overrideOf: id, source: 'dashboard', deleted: true });
-    else state.customGroups = state.customGroups.map((item, itemIndex) => itemIndex === index ? Object.assign({}, item, { deleted: true }) : item);
+    await loadInventory();
     state.deletingGroupId = "";
     closeGroupModal();
+    render();
   } catch (error) {
     state.groupSaveError = error.message;
     state.deletingGroupId = "";
@@ -570,7 +553,7 @@ async function deleteGroup(id) {
 function groupModal() {
   if (!state.groupModalOpen) return "";
   const draft = state.groupDraft || emptyGroupDraft();
-  const hostOptions = ["docker-lxc", "serverpi", "optipi", "plex-lxc", "pihole-lxc"].map((host) => '<option value="' + host + '" ' + (draft.host === host ? 'selected' : '') + '>' + escapeHtml(hostName(host)) + '</option>').join('');
+  const hostOptions = hostAndUnitOptions().map((option) => '<option value="' + option.id + '" ' + (draft.host === option.id ? 'selected' : '') + '>' + escapeHtml(option.label) + '</option>').join('');
   const categoryOptions = ["apps", "media", "management", "network", "home", "other"].map((category) => '<option value="' + category + '" ' + (draft.category === category ? 'selected' : '') + '>' + escapeHtml(category) + '</option>').join('');
   const importanceOptions = ["low", "medium", "high", "critical"].map((importance) => '<option value="' + importance + '" ' + (draft.importance === importance ? 'selected' : '') + '>' + escapeHtml(importance) + '</option>').join('');
   return '<div class="modal-backdrop"><form class="service-modal" data-group-form="true"><div class="card-head"><div><p class="eyebrow">' + (draft.id ? 'Edit Card' : 'Add Card') + '</p><h2>Service card</h2></div><button type="button" class="icon-close" data-close-group-modal="true">Close</button></div><label><span>Name</span><input name="name" required maxlength="120" value="' + escapeHtml(draft.name) + '" /></label><div class="form-row"><label><span>Host</span><select name="host">' + hostOptions + '</select></label><label><span>Category</span><select name="category">' + categoryOptions + '</select></label></div><label><span>Importance</span><select name="importance">' + importanceOptions + '</select></label><label><span>Purpose</span><textarea name="purpose" rows="3" maxlength="260">' + escapeHtml(draft.purpose) + '</textarea></label><label><span>Notes</span><textarea name="notes" rows="3" maxlength="500">' + escapeHtml(draft.notes || '') + '</textarea></label><div class="modal-actions"><button class="primary-action" type="submit" ' + (state.savingGroup ? 'disabled' : '') + '>' + (state.savingGroup ? 'Saving...' : (draft.id ? 'Save changes' : 'Save card')) + '</button><button type="button" data-close-group-modal="true">Cancel</button></div>' + (draft.id ? '<div class="modal-danger-zone"><button type="button" class="danger" data-delete-group-from-modal="' + escapeHtml(draft.id) + '">Delete card</button></div>' : '') + (state.groupSaveError ? '<p class="form-error">' + escapeHtml(state.groupSaveError) + '</p>' : '') + '</form></div>';
@@ -655,56 +638,24 @@ async function deleteRoadmapItem(id) {
 applyTheme();
 
 function hostName(id) {
-  const host = inventory.hosts.find((item) => item.id === id);
-  const unit = inventory.computeUnits.find((item) => item.id === id);
+  const host = state.inventory.hosts.find((item) => item.id === id);
+  const unit = state.inventory.computeUnits.find((item) => item.id === id);
   return (host && host.shortName) || (unit && unit.name) || id;
 }
 
 function parentHostId(id) {
-  const directHost = inventory.hosts.find((host) => host.id === id);
+  const directHost = state.inventory.hosts.find((host) => host.id === id);
   if (directHost) return directHost.id;
-  const unit = inventory.computeUnits.find((item) => item.id === id);
+  const unit = state.inventory.computeUnits.find((item) => item.id === id);
   return unit ? unit.host : id;
 }
 
-function inventoryServiceIds() {
-  return new Set(serviceGroups().flatMap((group) => (group.services || []).map((service) => service.id)));
-}
-
-function groupOverrides() {
-  return new Map(state.customGroups.filter((group) => group.overrideOf).map((group) => [group.overrideOf, group]));
-}
-
-function dashboardGroups() {
-  return state.customGroups.filter((group) => !group.overrideOf && !group.deleted);
-}
-
 function serviceGroups() {
-  const overrides = groupOverrides();
-  return inventory.serviceGroups.map((group) => Object.assign({}, group, overrides.get(group.id) || {}, { id: group.id })).filter((group) => !group.deleted).concat(dashboardGroups());
+  return state.inventory.serviceGroups || [];
 }
 
-function serviceOverrides() {
-  const ids = inventoryServiceIds();
-  return new Map(state.customServices.filter((service) => service.overrideOf || ids.has(service.id)).map((service) => [service.overrideOf || service.id, service]));
-}
-
-function dashboardAddedServices() {
-  const ids = inventoryServiceIds();
-  return state.customServices.filter((service) => !service.overrideOf && !ids.has(service.id) && !service.deleted);
-}
-
-function matchingServiceGroup(service) {
-  const serviceHost = service.host || "docker-lxc";
-  const serviceParent = parentHostId(serviceHost);
-  return serviceGroups().find((group) => group.category === service.category && (group.host === serviceHost || parentHostId(group.host) === serviceParent)) ||
-    serviceGroups().find((group) => group.category === service.category) ||
-    serviceGroups().find((group) => group.host === serviceHost || parentHostId(group.host) === serviceParent) ||
-    null;
-}
-
-function decorateService(service, group, flags) {
-  return Object.assign({}, service, flags || {}, {
+function decorateService(service, group) {
+  return Object.assign({}, service, {
     group: group.name,
     groupId: group.id,
     groupHost: group.host,
@@ -716,20 +667,16 @@ function decorateService(service, group, flags) {
 }
 
 function services() {
-  const overrides = serviceOverrides();
-  const inventoryServices = serviceGroups().flatMap((group) => (group.services || []).map((service) => {
-    const override = overrides.get(service.id);
-    return decorateService(Object.assign({}, service, override || {}, { id: service.id }), group, { dashboardOverride: Boolean(override) });
-  }));
-  const added = dashboardAddedServices().map((service) => {
-    const group = matchingServiceGroup(service) || { id: "dashboard-added", name: "Dashboard Added", host: service.host || "docker-lxc", category: service.category || "apps", purpose: "Services added from jaludash.", notes: [] };
-    return decorateService(service, group, { dashboardAdded: true });
-  });
-  return inventoryServices.concat(added);
+  return serviceGroups().flatMap((group) => (group.services || []).map((service) => decorateService(service, group)));
 }
 
 function findService(serviceId) {
   return services().find((service) => service.id === serviceId) || null;
+}
+
+function hostAndUnitOptions() {
+  return state.inventory.hosts.map((item) => ({ id: item.id, label: item.shortName || item.name }))
+    .concat(state.inventory.computeUnits.map((item) => ({ id: item.id, label: item.name })));
 }
 
 function badge(text, tone) {
@@ -754,12 +701,12 @@ function shell(content) {
 function overview() {
   const allServices = services();
   const highOrCritical = allServices.filter((item) => ["critical", "high"].includes(item.importance)).length;
-  const attention = inventory.concerns.sort((a, b) => rank[b.priority] - rank[a.priority]).map((item) => '<article class="attention ' + item.priority + '">' + badge(item.priority, item.priority) + '<h3>' + escapeHtml(item.label) + '</h3><p>' + escapeHtml(item.nextStep) + '</p><span>' + escapeHtml(item.target) + '</span></article>').join('');
-  shell('<main class="page"><section class="stats overview-stats"><article><span>Hosts</span><strong>' + inventory.hosts.length + '</strong></article><article><span>Compute</span><strong>' + inventory.computeUnits.length + '</strong></article><article><span>Services</span><strong>' + allServices.length + '</strong></article><article><span>Important</span><strong>' + highOrCritical + '</strong></article><article><span>Online</span><strong>' + (state.statusSummary.online || 0) + '</strong></article><article><span>Offline</span><strong>' + (state.statusSummary.offline || 0) + '</strong></article></section><section class="panel"><div class="section-title"><p class="eyebrow">Needs Attention</p><h2>First places to look</h2></div><div class="attention-grid">' + attention + '</div></section>' + hostHealthSection() + '<section><div class="section-title"><p class="eyebrow">Inventory</p><h2>Hosts and what they run</h2></div><div class="host-grid">' + inventory.hosts.map(hostCard).join('') + '</div></section></main>');
+  const attention = state.inventory.concerns.sort((a, b) => rank[b.priority] - rank[a.priority]).map((item) => '<article class="attention ' + item.priority + '">' + badge(item.priority, item.priority) + '<h3>' + escapeHtml(item.label) + '</h3><p>' + escapeHtml(item.nextStep) + '</p><span>' + escapeHtml(item.target) + '</span></article>').join('');
+  shell('<main class="page"><section class="stats overview-stats"><article><span>Hosts</span><strong>' + state.inventory.hosts.length + '</strong></article><article><span>Compute</span><strong>' + state.inventory.computeUnits.length + '</strong></article><article><span>Services</span><strong>' + allServices.length + '</strong></article><article><span>Important</span><strong>' + highOrCritical + '</strong></article><article><span>Online</span><strong>' + (state.statusSummary.online || 0) + '</strong></article><article><span>Offline</span><strong>' + (state.statusSummary.offline || 0) + '</strong></article></section><section class="panel"><div class="section-title"><p class="eyebrow">Needs Attention</p><h2>First places to look</h2></div><div class="attention-grid">' + attention + '</div></section>' + hostHealthSection() + '<section><div class="section-title"><p class="eyebrow">Inventory</p><h2>Hosts and what they run</h2></div><div class="host-grid">' + state.inventory.hosts.map(hostCard).join('') + '</div></section></main>');
 }
 
 function hostCard(host) {
-  const units = inventory.computeUnits.filter((unit) => unit.host === host.id);
+  const units = state.inventory.computeUnits.filter((unit) => unit.host === host.id);
   const groups = serviceGroups().filter((group) => group.host === host.id || units.some((unit) => unit.id === group.host));
   const computeHtml = units.map((unit) => '<span>' + escapeHtml(unit.name) + ' <small>' + escapeHtml(unit.type) + '</small></span>').join('') || '<span>Docker on host</span>';
   const groupsHtml = groups.map((group) => '<div><strong>' + escapeHtml(group.name) + '</strong><span>' + ((group.services || []).length) + ' services on ' + escapeHtml(hostName(group.host)) + '</span></div>').join('');
@@ -801,8 +748,6 @@ function visibleGroups() {
     if (matchedServices.length || (!query && state.focus === 'all' && group.source === 'dashboard')) return Object.assign({}, group, { services: matchedServices });
     return null;
   }).filter(Boolean);
-  const fallbackServices = allServices.filter((service) => service.groupId === "dashboard-added" && matchesFocus(service));
-  if (fallbackServices.length) groups.push({ id: "dashboard-added", name: "Dashboard Added", host: "docker-lxc", category: "apps", importance: "low", purpose: "Services added from jaludash.", services: fallbackServices });
   return groups;
 }
 
@@ -819,7 +764,7 @@ function serviceDirectory() {
   const stats = directoryStats();
   const groups = visibleGroups();
   const filterButtons = [['all', 'All'], ['openable', 'Has URL'], ['needs-docs', 'Needs Docs'], ['important', 'High/Critical'], ['planned', 'Planned']].map(([id, label]) => '<button class="' + (state.focus === id ? 'active' : '') + '" data-focus="' + id + '">' + label + '</button>').join('');
-  const hostOptions = ['<option value="all">All hosts</option>'].concat(inventory.hosts.map((host) => '<option value="' + host.id + '" ' + (state.host === host.id ? 'selected' : '') + '>' + host.shortName + '</option>')).join('');
+  const hostOptions = ['<option value="all">All hosts</option>'].concat(state.inventory.hosts.map((host) => '<option value="' + host.id + '" ' + (state.host === host.id ? 'selected' : '') + '>' + host.shortName + '</option>')).join('');
   const categoryOptions = ['<option value="all">All categories</option>'].concat(uniqueCategories().map((category) => '<option value="' + category + '" ' + (state.category === category ? 'selected' : '') + '>' + category + '</option>')).join('');
   shell('<main class="page service-page"><section class="service-hero"><div><h2>Service directory</h2><p class="status-timestamp">' + (state.statusCheckedAt ? 'Last checked ' + new Date(state.statusCheckedAt).toLocaleTimeString() : 'Status not checked yet') + (state.statusError ? ' / ' + escapeHtml(state.statusError) : '') + '</p><div class="service-hero-actions"><button class="primary-action inline-action" type="button" data-add-service="true">Add Service</button><button class="theme-toggle inline-action" type="button" data-add-group="true">Add Card</button></div></div><div class="directory-stats"><article><span>Total</span><strong>' + stats.total + '</strong></article><article><span>Openable</span><strong>' + stats.openable + '</strong></article><article><span>No URL</span><strong>' + stats.missingUrl + '</strong></article><article><span>Important</span><strong>' + stats.important + '</strong></article></div></section><section class="service-controls"><label class="search"><span>Search</span><input type="search" value="' + escapeHtml(state.query) + '" placeholder="Try Plex, network, serverpi..." /></label><label><span>Host</span><select data-filter="host">' + hostOptions + '</select></label><label><span>Category</span><select data-filter="category">' + categoryOptions + '</select></label><div class="quick-filters" aria-label="Quick service filters">' + filterButtons + '</div></section><section class="directory-result"><div class="result-line"><strong>' + groups.reduce((sum, group) => sum + ((group.services || []).length), 0) + '</strong><span> matching services in </span><strong>' + groups.length + '</strong><span> stacks</span></div></section><section class="group-grid service-groups">' + (groups.map(groupCard).join('') || '<div class="empty">No services match these filters.</div>') + '</section></main>');
   const input = document.querySelector("input[type='search']");
@@ -1076,7 +1021,7 @@ function roadmapForm() {
 }
 
 function roadmap() {
-  const plannedCards = inventory.plannedChanges.map((item) => roadmapCard(item, 'inventory')).join('');
+  const plannedCards = state.inventory.plannedChanges.map((item) => roadmapCard(item, 'inventory')).join('');
   const customCards = state.roadmapItems.map((item) => roadmapCard(item, 'dashboard')).join('');
   const customSection = customCards || '<div class="empty">No dashboard-added roadmap items yet.</div>';
   shell('<main class="page roadmap-page"><section class="roadmap-header"><div class="section-title"><p class="eyebrow">Living Documentation</p><h2>Planned changes and discovery model</h2></div>' + roadmapForm() + '</section><section><div class="section-title"><p class="eyebrow">Dashboard Items</p><h2>Added from the app</h2></div><div class="roadmap-grid">' + customSection + '</div></section><section><div class="section-title"><p class="eyebrow">Inventory Items</p><h2>Seeded from the model</h2></div><div class="roadmap-grid">' + plannedCards + '</div></section><section class="panel discovery"><div><p class="eyebrow">Auto-Discovery</p><h2>Useful things jaludash should learn next</h2></div><div class="discovery-grid"><article><strong>Inventory changes</strong><span>New containers, LXCs, VMs, ports, and URLs that are not in Services yet</span></article><article><strong>Service metadata</strong><span>Suggested names, categories, host mapping, and documentation matches</span></article><article><strong>Health signals</strong><span>Broken URLs, unhealthy containers, full disks, and exporters that stopped reporting</span></article><article><strong>Change history</strong><span>What appeared, disappeared, moved host, or changed address over time</span></article></div></section></main>');
@@ -1227,8 +1172,7 @@ function render() {
 
 render();
 loadServiceDocs().finally(render);
-Promise.all([loadCustomServices(), loadCustomGroups()]).finally(render);
+loadInventory().finally(() => { render(); refreshLiveDataAndRender(); });
 loadRoadmapItems().finally(render);
 loadClientInfo().finally(render);
 loadHistory().finally(render);
-refreshLiveDataAndRender();

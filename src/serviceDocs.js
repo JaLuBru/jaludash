@@ -1,4 +1,318 @@
 export const serviceDocs = {
+  "bazarr": {
+    "serviceId": "bazarr",
+    "sourceFile": "Mediaserver.md",
+    "title": "Plex & Co.",
+    "frontmatter": {
+      "tags": [
+        "Homelab/Apps"
+      ],
+      "aliases": [
+        "Mediaserver"
+      ],
+      "ITname": "Plex & Co.",
+      "ITcategory": "Mediaserver",
+      "ITmachine": [
+        "Raspberry Pi"
+      ],
+      "ITinstalltype": "docker",
+      "ITstatus": [
+        "installed"
+      ]
+    },
+    "summary": "Mediaserver Torrent - qBitTorrent Setup NZB - SABnzb Setup",
+    "links": [
+      {
+        "label": "Jellyfin API",
+        "url": "https://jellyfin.jalubru.duckdns.org/web/index.html#!/apikeys.html"
+      },
+      {
+        "label": "github.com/qdm12/gluetun/wiki",
+        "url": "https://github.com/qdm12/gluetun/wiki"
+      },
+      {
+        "label": "raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json",
+        "url": "https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json"
+      },
+      {
+        "label": "192.168.0.195:32400/web",
+        "url": "http://192.168.0.195:32400/web"
+      },
+      {
+        "label": "192.168.0.195:8181",
+        "url": "http://192.168.0.195:8181"
+      },
+      {
+        "label": "192.168.0.195:8096",
+        "url": "http://192.168.0.195:8096"
+      },
+      {
+        "label": "192.168.0.195:6555",
+        "url": "http://192.168.0.195:6555"
+      },
+      {
+        "label": "jellyfin.jalubru.duckdns.org",
+        "url": "https://jellyfin.jalubru.duckdns.org"
+      },
+      {
+        "label": "192.168.0.195:7878",
+        "url": "http://192.168.0.195:7878"
+      },
+      {
+        "label": "192.168.0.195:8989",
+        "url": "http://192.168.0.195:8989"
+      },
+      {
+        "label": "192.168.0.195:9696",
+        "url": "http://192.168.0.195:9696"
+      },
+      {
+        "label": "wiki.bazarr.media",
+        "url": "https://wiki.bazarr.media"
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "docker network create mediastack\nsudo mkdir -p /media/wd2001ext4/apps/mediaserver/{plex-config,tautulli-config,plex-logs,radarr-config,sonarr-config,prowlarr-config,bazarr-config,qbittorrent-config,sabnzbd-config}"
+      },
+      {
+        "language": "bash",
+        "code": "sudo nano /media/wd2001ext4/apps/mediaserver/docker-compose.yaml"
+      },
+      {
+        "language": "yaml",
+        "code": "name: media-stack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\n  ## Default credentials of qBittorrent - Username: admin password: adminadmin ##\n  ## Change password after install from UI --> Tools --> Options --> WebUI ##\n  qbittorrent:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    # image: lscr.io/linuxserver/qbittorrent:4.5.4 older version\n    container_name: qbittorrent\n    # Unomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # Comment below lines if VPN is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    # Unomment below line if vpn is enabled\n    # network_mode: service:vpn\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - WEBUI_PORT=5080\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/qbittorrent-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ## Comment/Disable below ports if VPN is enabled\n    ports:\n      - 5080:5080\n      - 6881:6881\n      - 6881:6881/udp\n    restart: unless-stopped\n    pull_policy: always\n\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    # image: lscr.io/linuxserver/radarr:4.7.5 older version\n    container_name: radarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    ports:\n      - 7878:7878\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/radarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    restart: unless-stopped\n    pull_policy: always\n\n  sonarr:\n    image: linuxserver/sonarr:latest #using v4 instead of v3\n##    image: linuxserver/sonarr:4.0.0-develop\n    container_name: sonarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sonarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ports:\n      - 8989:8989\n    restart: unless-stopped\n    pull_policy: always\n\n  prowlarr:\n    image: linuxserver/prowlarr:latest\n    container_name: prowlarr\n    # Uncomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # network_mode: service:vpn # Uncomment this line if vpn is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/prowlarr-config:/config\n    # Comment below ports if VPN is enabled.\n    ports:\n      - 9696:9696\n    restart: unless-stopped\n    pull_policy: always\n\n## Subtitel Manager and Downloader\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: bazarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/bazarr-config:/config\n      - /media/wd2001ext4/media/downloads/movies:/movies\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n    ports:\n      - 6767:6767\n    restart: unless-stopped\n    pull_policy: always\n\n## NZB Provider\n  sabnzbd:\n    image: lscr.io/linuxserver/sabnzbd:latest\n    container_name: sabnzbd\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sabnzbd-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n      - /media/wd2001ext4/media/incomplete-downloads:/incomplete-downloads\n    ports:\n      - 8070:8080\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n  radarr-config:\n  sonarr-config:\n  prowlarr-config:\n  bazarr-config:\n  qbittorrent-config:\n  sabnzbd-config:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true"
+      },
+      {
+        "language": "bash",
+        "code": "sudo docker compose -f /media/wd2001ext4/apps/mediaserver/docker-compose.yaml up -d"
+      },
+      {
+        "language": "bash",
+        "code": "docker network create mediastack"
+      },
+      {
+        "language": "bash",
+        "code": "sudo mkdir /mediaserver\nsudo nano /mediaserver/docker-compose.yaml"
+      },
+      {
+        "language": "yaml",
+        "code": "name: mediastack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /mnt/media/wd2001ext4/media/downloads/tvshows:/tv\n      - /mnt/media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true"
+      },
+      {
+        "language": "bash",
+        "code": "sudo docker compose -f /mediaserver/docker-compose.yaml up -d"
+      },
+      {
+        "language": "yaml",
+        "code": "# To use/enable VPN, Run this compose file with --profile=vpn. Its highly recommended to use VPN.\n  vpn:\n  ## Read https://github.com/qdm12/gluetun/wiki for details on configuring VPN for different service providers.\n    profiles: [\"vpn\"]\n    container_name: vpn\n    image: qmcgaw/gluetun:v3.35.0\n    cap_add:\n      - NET_ADMIN\n    environment:\n      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-nordvpn} # Valid values: nordvpn, expressvpn, protonvpn, surfshark or custom\n      - OPENVPN_USER=[REDACTED]\n      - OPENVPN_PASSWORD=[REDACTED]\n\n      ## For list of server countries, visit https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json\n\n      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-Latvia}\n    \n      # - FREE_ONLY=on  # Valid with protonvpn only. Value willbe set \"on\" if using free subscription provided by protonvpn\n\n      ## Enable below if VPN_SERVICE_PROVIDER=custom\n      # - VPN_TYPE=openvpn # or wireguard. \n\n      ## If VPN_TYPE is openvpn\n      # - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf\n\n      ## If VPN_TYPE is wireguard. Replace below env variables as required.\n      # - VPN_ENDPOINT_IP=1.2.3.4                                               # Replace with your wg endpoint ip or domain\n      # - VPN_ENDPOINT_PORT=51820                                               # Replace with wg server port\n      # - WIREGUARD_PUBLIC_KEY=[REDACTED]     # Replace with your wg public key\n      # - WIREGUARD_PRIVATE_KEY=[REDACTED]    # Replace with your wg client private key\n      # - WIREGUARD_PRESHARED_KEY=[REDACTED]  # Replaced with your wg pre-shared key\n      # - WIREGUARD_ADDRESSES=\"10.64.222.21/32\"                                 # Replace with wg address\n\n    ## Enable volume if VPN_SERVICE_PROVIDER=custom and VPN_TYPE=openvpn is used\n    # volumes:\n      # - /yourpath/yourconfig.conf:/gluetun/config.conf:ro\n\n    networks:\n      - mediastack\n    \n    # Uncomment/enable below ports if VPN is used/enabled\n    # ports:\n    #   # qbittorrent ports\n    #   - 5080:5080\n    #   - 6881:6881\n    #   - 6881:6881/udp\n    #   # prowlarr ports\n    #   - 9696:9696\n    restart: \"unless-stopped\"\n\n  jellyfin:\n    image: linuxserver/jellyfin:latest\n    container_name: jellyfin\n    # image: linuxserver/jellyfin:10.8.10 - old image\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/jellyfin-config:/config\n      - /media/wd2001ext4/media/downloads:/data\n  # devices:\n  #  - /dev/videoN:/dev/videoN # Mount GPU device \n    ports:\n      - 8096:8096\n      - 7359:7359/udp\n      - 8920:8920\n    restart: unless-stopped\n\n## Jellyfin stats\n  embystat:\n    image: lscr.io/linuxserver/embystat:latest\n    container_name: embystat\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/embystat-config:/config\n    ports:\n      - 6555:6555\n    restart: unless-stopped\n\n  cleanmyarr:\n    depends_on:\n      - radarr\n      - sonarr\n    image: linuxshots/cleanmyarr:0.4.1-beta\n    container_name: cleanmyarr\n    networks:\n      - mediastack\n      - proxy\n    volumes:\n      - cleanmyarr-config:/config\n    restart: unless-stopped\n  \nvolumes:\n  jellyfin-config:\n  embystat-config:\n  sabnzbd-config:\n  cleanmyarr-config:"
+      },
+      {
+        "language": "text",
+        "code": "location /jellyfin {\n        return 302 $scheme://$host/jellyfin/;\n    }\n\n    location /jellyfin/ {\n\n        proxy_pass http://jellyfin:8096/jellyfin/;\n\n        proxy_pass_request_headers on;\n\n        proxy_set_header Host $host;\n\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Forwarded-Host $http_host;\n\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection $http_connection;\n\n        # Disable buffering when the nginx proxy gets very resource heavy upon streaming\n        proxy_buffering off;\n    }"
+      },
+      {
+        "language": "text",
+        "code": "location /radarr {\n    proxy_pass http://radarr:7878;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }"
+      },
+      {
+        "language": "text",
+        "code": "location /radarr {\n    proxy_pass http://sonarr:8989;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }"
+      },
+      {
+        "language": "text",
+        "code": "location /prowlarr {\n    proxy_pass http://prowlarr:9696; # Comment this line if VPN is enabled.\n    # proxy_pass http://vpn:9696; # Uncomment this line if VPN is enabled.\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }"
+      }
+    ],
+    "markdown": "## Mediaserver\n- [[Torrent|Torrent]] - qBitTorrent Setup\n- [[NZB|NZB]] - SABnzb Setup\n\n---\n### Docker Compose\n\n```bash\ndocker network create mediastack\nsudo mkdir -p /media/wd2001ext4/apps/mediaserver/{plex-config,tautulli-config,plex-logs,radarr-config,sonarr-config,prowlarr-config,bazarr-config,qbittorrent-config,sabnzbd-config}\n```\n\n```bash\nsudo nano /media/wd2001ext4/apps/mediaserver/docker-compose.yaml\n```\n\n```yaml\nname: media-stack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\n  ## Default credentials of qBittorrent - Username: admin password: adminadmin ##\n  ## Change password after install from UI --> Tools --> Options --> WebUI ##\n  qbittorrent:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    # image: lscr.io/linuxserver/qbittorrent:4.5.4 older version\n    container_name: qbittorrent\n    # Unomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # Comment below lines if VPN is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    # Unomment below line if vpn is enabled\n    # network_mode: service:vpn\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - WEBUI_PORT=5080\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/qbittorrent-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ## Comment/Disable below ports if VPN is enabled\n    ports:\n      - 5080:5080\n      - 6881:6881\n      - 6881:6881/udp\n    restart: unless-stopped\n    pull_policy: always\n\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    # image: lscr.io/linuxserver/radarr:4.7.5 older version\n    container_name: radarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    ports:\n      - 7878:7878\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/radarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    restart: unless-stopped\n    pull_policy: always\n\n  sonarr:\n    image: linuxserver/sonarr:latest #using v4 instead of v3\n##    image: linuxserver/sonarr:4.0.0-develop\n    container_name: sonarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sonarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ports:\n      - 8989:8989\n    restart: unless-stopped\n    pull_policy: always\n\n  prowlarr:\n    image: linuxserver/prowlarr:latest\n    container_name: prowlarr\n    # Uncomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # network_mode: service:vpn # Uncomment this line if vpn is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/prowlarr-config:/config\n    # Comment below ports if VPN is enabled.\n    ports:\n      - 9696:9696\n    restart: unless-stopped\n    pull_policy: always\n\n## Subtitel Manager and Downloader\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: bazarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/bazarr-config:/config\n      - /media/wd2001ext4/media/downloads/movies:/movies\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n    ports:\n      - 6767:6767\n    restart: unless-stopped\n    pull_policy: always\n\n## NZB Provider\n  sabnzbd:\n    image: lscr.io/linuxserver/sabnzbd:latest\n    container_name: sabnzbd\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sabnzbd-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n      - /media/wd2001ext4/media/incomplete-downloads:/incomplete-downloads\n    ports:\n      - 8070:8080\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n  radarr-config:\n  sonarr-config:\n  prowlarr-config:\n  bazarr-config:\n  qbittorrent-config:\n  sabnzbd-config:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /media/wd2001ext4/apps/mediaserver/docker-compose.yaml up -d\n```\n\n---\n#### Optiplex\n```bash\ndocker network create mediastack\n```\n\n```bash\nsudo mkdir /mediaserver\nsudo nano /mediaserver/docker-compose.yaml\n```\n\nalso included is [[Overseerr]]\n\n```yaml\nname: mediastack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /mnt/media/wd2001ext4/media/downloads/tvshows:/tv\n      - /mnt/media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /mediaserver/docker-compose.yaml up -d\n```\n---\n##### Unused:\n\n```yaml\n  # To use/enable VPN, Run this compose file with --profile=vpn. Its highly recommended to use VPN.\n  vpn:\n  ## Read https://github.com/qdm12/gluetun/wiki for details on configuring VPN for different service providers.\n    profiles: [\"vpn\"]\n    container_name: vpn\n    image: qmcgaw/gluetun:v3.35.0\n    cap_add:\n      - NET_ADMIN\n    environment:\n      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-nordvpn} # Valid values: nordvpn, expressvpn, protonvpn, surfshark or custom\n      - OPENVPN_USER=[REDACTED]\n      - OPENVPN_PASSWORD=[REDACTED]\n\n      ## For list of server countries, visit https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json\n\n      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-Latvia}\n    \n      # - FREE_ONLY=on  # Valid with protonvpn only. Value willbe set \"on\" if using free subscription provided by protonvpn\n\n      ## Enable below if VPN_SERVICE_PROVIDER=custom\n      # - VPN_TYPE=openvpn # or wireguard. \n\n      ## If VPN_TYPE is openvpn\n      # - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf\n\n      ## If VPN_TYPE is wireguard. Replace below env variables as required.\n      # - VPN_ENDPOINT_IP=1.2.3.4                                               # Replace with your wg endpoint ip or domain\n      # - VPN_ENDPOINT_PORT=51820                                               # Replace with wg server port\n      # - WIREGUARD_PUBLIC_KEY=[REDACTED]     # Replace with your wg public key\n      # - WIREGUARD_PRIVATE_KEY=[REDACTED]    # Replace with your wg client private key\n      # - WIREGUARD_PRESHARED_KEY=[REDACTED]  # Replaced with your wg pre-shared key\n      # - WIREGUARD_ADDRESSES=\"10.64.222.21/32\"                                 # Replace with wg address\n\n    ## Enable volume if VPN_SERVICE_PROVIDER=custom and VPN_TYPE=openvpn is used\n    # volumes:\n      # - /yourpath/yourconfig.conf:/gluetun/config.conf:ro\n\n    networks:\n      - mediastack\n    \n    # Uncomment/enable below ports if VPN is used/enabled\n    # ports:\n    #   # qbittorrent ports\n    #   - 5080:5080\n    #   - 6881:6881\n    #   - 6881:6881/udp\n    #   # prowlarr ports\n    #   - 9696:9696\n    restart: \"unless-stopped\"\n\n  jellyfin:\n    image: linuxserver/jellyfin:latest\n    container_name: jellyfin\n    # image: linuxserver/jellyfin:10.8.10 - old image\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/jellyfin-config:/config\n      - /media/wd2001ext4/media/downloads:/data\n  # devices:\n  #  - /dev/videoN:/dev/videoN # Mount GPU device \n    ports:\n      - 8096:8096\n      - 7359:7359/udp\n      - 8920:8920\n    restart: unless-stopped\n\n## Jellyfin stats\n  embystat:\n    image: lscr.io/linuxserver/embystat:latest\n    container_name: embystat\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/embystat-config:/config\n    ports:\n      - 6555:6555\n    restart: unless-stopped\n\n  cleanmyarr:\n    depends_on:\n      - radarr\n      - sonarr\n    image: linuxshots/cleanmyarr:0.4.1-beta\n    container_name: cleanmyarr\n    networks:\n      - mediastack\n      - proxy\n    volumes:\n      - cleanmyarr-config:/config\n    restart: unless-stopped\n  \nvolumes:\n  jellyfin-config:\n  embystat-config:\n  sabnzbd-config:\n  cleanmyarr-config:\n```\n\n---\n### Configuration\n\n#### Configure Plex\n\n- Open Plex at http://192.168.0.195:32400/web\n- Configure as it asks for the first time adding /tvshows and /movies\n\n#### Configure Tautulli\n\n- Open Tautulli at http://192.168.0.195:8181\n\n#### Configure Jellyfin\n\n- Open Jellyfin at http://192.168.0.195:8096\n- Configure as it asks for first time.\n- Add media library folder and choose /data/movies/\n\n#### Configure EmbyStat\n\n- Open EmbyStat at http://192.168.0.195:6555\n- Configure as it asks for first time.\n- Server: at 172.25.0.4 URL: https://jellyfin.jalubru.duckdns.org\n- API: [Jellyfin API](https://jellyfin.jalubru.duckdns.org/web/index.html#!/apikeys.html)\n\n#### Configure Radarr\n\n- Open Radarr at http://192.168.0.195:7878\n- Settings --> Media Management --> Check mark \"Movies deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a movie** (After Prowlarr is configured)\n\n- Movies --> Search for a movie --> Add Root folder (/downloads) --> Quality profile --> Add movie\n- Go to qBittorrent (http://192.168.0.195:5080) and see if movie is getting downloaded.\n\n#### Configure Sonarr\n\n- Open Sonarr at http://192.168.0.195:8989\n- Settings --> Media Management --> Check mark \"Shows deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a show** (After Prowlarr is configured)\n\n- Shows --> Search for a show --> Add Root folder (/downloads) --> Quality profile --> Add show\n- Go to qBittorrent (http://192.168.0.195:5080) and see if show is getting downloaded.\n\n#### Configure Prowlarr\n\n- Open Prowlarr at http://192.168.0.195:9696\n- Settings --> General --> Authentications --> Select Authentication and add username and password\n- Add Indexers, Indexers --> Add Indexer --> Search for indexer --> Choose base URL --> Test and Save\n- Add application, Settings --> Apps --> Add application --> Choose Sonarr or Radarr or any apps to link --> Prowlarr server (http://192.168.0.195:9696) --> Radarr (http://192.168.0.195:7878) or Sonarr (http://192.168.0.195:8989)--> API Key --> Test and Save\n- This will add indexers in respective apps automatically.\n\n#### Configure Bazarr\nhttps://wiki.bazarr.media\n\n- Open Bazarr at http://192.168.0.195:6767\n- Go to Settings -->Sonarr or Radarr --> Address: 192.168.0.195, \n- Create Account at https://www.opensubtitles.org, https://www.opensubtitles.com, \n\n---\n### Nginx Configuration\n\n- Get inside Nginx container\n- `cd /etc/nginx/conf.d`\n- Add proxies for all tools.\n\n`docker cp nginx.conf nginx:/etc/nginx/conf.d/default.conf && docker exec -it nginx nginx -s reload`\n- Close ports of other tools in firewall/security groups except port 80 and 443.\n\n#### Apply SSL in Nginx\n\n- Open port 80 and 443.\n- Get inside Nginx container and install certbot and certbot-nginx `apk add certbot certbot-nginx`\n- Add URL in server block. e.g. `server_name  localhost armdev.navratangupta.in;` in /etc/nginx/conf.d/default.conf\n- Run `certbot --nginx` and provide details asked.\n\n#### Jellyfin Nginx proxy\n\n- Add base URL, Admin Dashboard -> Networking -> Base URL (/jellyfin)\n- Add below config in Ngix config\n\n```\n location /jellyfin {\n        return 302 $scheme://$host/jellyfin/;\n    }\n\n    location /jellyfin/ {\n\n        proxy_pass http://jellyfin:8096/jellyfin/;\n\n        proxy_pass_request_headers on;\n\n        proxy_set_header Host $host;\n\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Forwarded-Host $http_host;\n\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection $http_connection;\n\n        # Disable buffering when the nginx proxy gets very resource heavy upon streaming\n        proxy_buffering off;\n    }\n```\n\n- Restart containers\n\n#### Radarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/radarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://radarr:7878;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n#### Sonarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/sonarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://sonarr:8989;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n#### Prowlarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/prowlarr)\n- Add below proxy in nginx configuration\n\nThis may need to change configurations in indexers and base in URL.\n\n```\nlocation /prowlarr {\n    proxy_pass http://prowlarr:9696; # Comment this line if VPN is enabled.\n    # proxy_pass http://vpn:9696; # Uncomment this line if VPN is enabled.\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n**Note: If VPN is enabled, then Prowlarr is reachable on vpn's service name**\n\n---\n>[[00 Homelab|home]]"
+  },
+  "dockhand-optipi": {
+    "serviceId": "dockhand-optipi",
+    "sourceFile": "Dockhand.md",
+    "title": "Dockhand",
+    "frontmatter": {
+      "tags": [
+        "Homelab/Apps"
+      ],
+      "aliases": [
+        "Dockhand"
+      ],
+      "ITname": "Dockhand",
+      "ITcategory": "Docker management",
+      "ITmachine": [
+        "OptiPi",
+        "Raspberry Pi"
+      ],
+      "ITinstalltype": "docker",
+      "ITstatus": [
+        "installed"
+      ],
+      "comments": "Docker container/stack manager, replacing Watchtower for auto-updates",
+      "url": [
+        "http://192.168.0.191:3030",
+        "https://dockhand.local.jalubru.com",
+        "http://192.168.0.195:3000",
+        "https://dockhandraspi.local.jalubru.com"
+      ]
+    },
+    "summary": "Dockhand Dockhand Modern web UI for managing Docker containers, images, volumes, and compose stacks across multiple hosts from one dashboard. Deployed once per host (OptiPi + Raspberry Pi), with the Pi's instance also re",
+    "links": [
+      {
+        "label": "Dockhand - Modern Docker Management",
+        "url": "https://dockhand.pro/"
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "sudo mkdir -p /home/apps/dockhand\nsudo nano /home/apps/dockhand/docker-compose.yaml"
+      },
+      {
+        "language": "yaml",
+        "code": "services:\n  dockhand:\n    image: fnsys/dockhand:latest\n    container_name: dockhand\n    restart: unless-stopped\n    ports:\n      - 3030:3000\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - dockhand_data:/app/data\n\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.dockhand.rule=Host(`dockhand.local.jalubru.com`)\"\n      - \"traefik.http.routers.dockhand.entrypoints=https\"\n      - \"traefik.http.routers.dockhand.tls=true\"\n      - \"traefik.http.services.dockhand.loadbalancer.server.port=3000\"\n    networks:\n      - proxy\nvolumes:\n  dockhand_data:\nnetworks:\n  proxy:\n    external: true"
+      },
+      {
+        "language": "bash",
+        "code": "docker compose -f /home/apps/dockhand/docker-compose.yaml up -d"
+      },
+      {
+        "language": "bash",
+        "code": "sudo mkdir -p /home/apps/dockhand\nsudo nano /home/apps/dockhand/docker-compose.yaml"
+      },
+      {
+        "language": "yaml",
+        "code": "services:\n  dockhand:\n    image: fnsys/dockhand:latest\n    container_name: dockhand\n    restart: unless-stopped\n    ports:\n      - 3000:3000\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - dockhand_data:/app/data\n\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.dockhand.rule=Host(`dockhandraspi.local.jalubru.com`)\"\n      - \"traefik.http.routers.dockhand.entrypoints=https\"\n      - \"traefik.http.routers.dockhand.tls=true\"\n      - \"traefik.http.services.dockhand.loadbalancer.server.port=3000\"\n    networks:\n      - proxy\nvolumes:\n  dockhand_data:\nnetworks:\n  proxy:\n    external: true"
+      },
+      {
+        "language": "bash",
+        "code": "docker compose -f /home/apps/dockhand/docker-compose.yaml up -d"
+      }
+    ],
+    "markdown": "## Dockhand\n\nModern web UI for managing Docker containers, images, volumes, and compose stacks across multiple hosts from one dashboard. Deployed once per host (OptiPi + Raspberry Pi), with the Pi's instance also reachable remotely from the OptiPi instance via [[Hawser]].\n\n> [!warning] `https://dockhandraspi.local.jalubru.com` is registered in [[Pi-Hole]] but currently returns 404 — the Raspberry Pi doesn't run Traefik (it uses [[Nginx Proxy Manager]]), and the `traefik.*` labels on that instance's compose file are inert leftovers. Either add a proxy host in NPM for it, or drop the dead labels. Use `http://192.168.0.195:3000` directly until then.\n\n---\n[Dockhand - Modern Docker Management](https://dockhand.pro/)\n\n---\n### Installation — OptiPi instance (port `3030`)\n\n```bash\nsudo mkdir -p /home/apps/dockhand\nsudo nano /home/apps/dockhand/docker-compose.yaml\n```\n\n```yaml\nservices:\n  dockhand:\n    image: fnsys/dockhand:latest\n    container_name: dockhand\n    restart: unless-stopped\n    ports:\n      - 3030:3000\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - dockhand_data:/app/data\n\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.dockhand.rule=Host(`dockhand.local.jalubru.com`)\"\n      - \"traefik.http.routers.dockhand.entrypoints=https\"\n      - \"traefik.http.routers.dockhand.tls=true\"\n      - \"traefik.http.services.dockhand.loadbalancer.server.port=3000\"\n    networks:\n      - proxy\nvolumes:\n  dockhand_data:\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\ndocker compose -f /home/apps/dockhand/docker-compose.yaml up -d\n```\n\n### Installation — Raspberry Pi instance (port `3000`)\n\nSame image, different host port and (currently non-functional) domain — see the warning above.\n\n```bash\nsudo mkdir -p /home/apps/dockhand\nsudo nano /home/apps/dockhand/docker-compose.yaml\n```\n\n```yaml\nservices:\n  dockhand:\n    image: fnsys/dockhand:latest\n    container_name: dockhand\n    restart: unless-stopped\n    ports:\n      - 3000:3000\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - dockhand_data:/app/data\n\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.dockhand.rule=Host(`dockhandraspi.local.jalubru.com`)\"\n      - \"traefik.http.routers.dockhand.entrypoints=https\"\n      - \"traefik.http.routers.dockhand.tls=true\"\n      - \"traefik.http.services.dockhand.loadbalancer.server.port=3000\"\n    networks:\n      - proxy\nvolumes:\n  dockhand_data:\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\ndocker compose -f /home/apps/dockhand/docker-compose.yaml up -d\n```\n\n### Control Remote Docker Instances\n\n1. Deploy [[Hawser|Hawser]] on the Pi\n\t   SSH into the Pi and run the Hawser agent as its own container. It only needs the Docker socket and a listening port — no separate database or heavy dependencies: docker run -d --name hawser --restart unless-stopped -v /var/run/docker.sock:/var/run/docker.sock -p 2376:2376 -e TOKEN=your-secret-token ghcr.io/finsys/hawser:latest Generate the token first with openssl rand -base64 32 rather than typing something by hand.\n    \n2. Decide Standard vs Edge mode\n\t   Standard mode: Hawser listens on the Pi at port 2376 and Dockhand connects out to it. Simplest choice on a stable LAN/Tailscale setup like yours — bind it to the Pi's Tailscale IP rather than 0.0.0.0 so it's only reachable over the tailnet. \n\t   Edge mode (agent dials out to Dockhand instead) is for boxes behind NAT/dynamic IP with no inbound reachability at all — not really necessary for you since Tailscale already gives you a stable reachable IP.\n    \n3. Add the environment in Dockhand \n\t   In Dockhand's UI: Settings → Environments → Add Environment. Give it a name (e.g. 'Raspberry'), set connection type to Hawser agent, enter the Pi's Tailscale IP and port 2376, paste in the token, then Test Connection.\n    \n4. Confirm and switch between hosts \n\t   Once connected, the Pi's containers, images, volumes, and stacks show up alongside the Optiplex's in the same dashboard. Switching between environments is a dropdown at the top of the UI — same terminal/logs access on both.\n\n---\n[[00 Apps|home]] | | source"
+  },
+  "dockhand-serverpi": {
+    "serviceId": "dockhand-serverpi",
+    "sourceFile": "Dockhand.md",
+    "title": "Dockhand",
+    "frontmatter": {
+      "tags": [
+        "Homelab/Apps"
+      ],
+      "aliases": [
+        "Dockhand"
+      ],
+      "ITname": "Dockhand",
+      "ITcategory": "Docker management",
+      "ITmachine": [
+        "OptiPi",
+        "Raspberry Pi"
+      ],
+      "ITinstalltype": "docker",
+      "ITstatus": [
+        "installed"
+      ],
+      "comments": "Docker container/stack manager, replacing Watchtower for auto-updates",
+      "url": [
+        "http://192.168.0.191:3030",
+        "https://dockhand.local.jalubru.com",
+        "http://192.168.0.195:3000",
+        "https://dockhandraspi.local.jalubru.com"
+      ]
+    },
+    "summary": "Dockhand Dockhand Modern web UI for managing Docker containers, images, volumes, and compose stacks across multiple hosts from one dashboard. Deployed once per host (OptiPi + Raspberry Pi), with the Pi's instance also re",
+    "links": [
+      {
+        "label": "Dockhand - Modern Docker Management",
+        "url": "https://dockhand.pro/"
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "sudo mkdir -p /home/apps/dockhand\nsudo nano /home/apps/dockhand/docker-compose.yaml"
+      },
+      {
+        "language": "yaml",
+        "code": "services:\n  dockhand:\n    image: fnsys/dockhand:latest\n    container_name: dockhand\n    restart: unless-stopped\n    ports:\n      - 3030:3000\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - dockhand_data:/app/data\n\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.dockhand.rule=Host(`dockhand.local.jalubru.com`)\"\n      - \"traefik.http.routers.dockhand.entrypoints=https\"\n      - \"traefik.http.routers.dockhand.tls=true\"\n      - \"traefik.http.services.dockhand.loadbalancer.server.port=3000\"\n    networks:\n      - proxy\nvolumes:\n  dockhand_data:\nnetworks:\n  proxy:\n    external: true"
+      },
+      {
+        "language": "bash",
+        "code": "docker compose -f /home/apps/dockhand/docker-compose.yaml up -d"
+      },
+      {
+        "language": "bash",
+        "code": "sudo mkdir -p /home/apps/dockhand\nsudo nano /home/apps/dockhand/docker-compose.yaml"
+      },
+      {
+        "language": "yaml",
+        "code": "services:\n  dockhand:\n    image: fnsys/dockhand:latest\n    container_name: dockhand\n    restart: unless-stopped\n    ports:\n      - 3000:3000\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - dockhand_data:/app/data\n\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.dockhand.rule=Host(`dockhandraspi.local.jalubru.com`)\"\n      - \"traefik.http.routers.dockhand.entrypoints=https\"\n      - \"traefik.http.routers.dockhand.tls=true\"\n      - \"traefik.http.services.dockhand.loadbalancer.server.port=3000\"\n    networks:\n      - proxy\nvolumes:\n  dockhand_data:\nnetworks:\n  proxy:\n    external: true"
+      },
+      {
+        "language": "bash",
+        "code": "docker compose -f /home/apps/dockhand/docker-compose.yaml up -d"
+      }
+    ],
+    "markdown": "## Dockhand\n\nModern web UI for managing Docker containers, images, volumes, and compose stacks across multiple hosts from one dashboard. Deployed once per host (OptiPi + Raspberry Pi), with the Pi's instance also reachable remotely from the OptiPi instance via [[Hawser]].\n\n> [!warning] `https://dockhandraspi.local.jalubru.com` is registered in [[Pi-Hole]] but currently returns 404 — the Raspberry Pi doesn't run Traefik (it uses [[Nginx Proxy Manager]]), and the `traefik.*` labels on that instance's compose file are inert leftovers. Either add a proxy host in NPM for it, or drop the dead labels. Use `http://192.168.0.195:3000` directly until then.\n\n---\n[Dockhand - Modern Docker Management](https://dockhand.pro/)\n\n---\n### Installation — OptiPi instance (port `3030`)\n\n```bash\nsudo mkdir -p /home/apps/dockhand\nsudo nano /home/apps/dockhand/docker-compose.yaml\n```\n\n```yaml\nservices:\n  dockhand:\n    image: fnsys/dockhand:latest\n    container_name: dockhand\n    restart: unless-stopped\n    ports:\n      - 3030:3000\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - dockhand_data:/app/data\n\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.dockhand.rule=Host(`dockhand.local.jalubru.com`)\"\n      - \"traefik.http.routers.dockhand.entrypoints=https\"\n      - \"traefik.http.routers.dockhand.tls=true\"\n      - \"traefik.http.services.dockhand.loadbalancer.server.port=3000\"\n    networks:\n      - proxy\nvolumes:\n  dockhand_data:\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\ndocker compose -f /home/apps/dockhand/docker-compose.yaml up -d\n```\n\n### Installation — Raspberry Pi instance (port `3000`)\n\nSame image, different host port and (currently non-functional) domain — see the warning above.\n\n```bash\nsudo mkdir -p /home/apps/dockhand\nsudo nano /home/apps/dockhand/docker-compose.yaml\n```\n\n```yaml\nservices:\n  dockhand:\n    image: fnsys/dockhand:latest\n    container_name: dockhand\n    restart: unless-stopped\n    ports:\n      - 3000:3000\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - dockhand_data:/app/data\n\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.dockhand.rule=Host(`dockhandraspi.local.jalubru.com`)\"\n      - \"traefik.http.routers.dockhand.entrypoints=https\"\n      - \"traefik.http.routers.dockhand.tls=true\"\n      - \"traefik.http.services.dockhand.loadbalancer.server.port=3000\"\n    networks:\n      - proxy\nvolumes:\n  dockhand_data:\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\ndocker compose -f /home/apps/dockhand/docker-compose.yaml up -d\n```\n\n### Control Remote Docker Instances\n\n1. Deploy [[Hawser|Hawser]] on the Pi\n\t   SSH into the Pi and run the Hawser agent as its own container. It only needs the Docker socket and a listening port — no separate database or heavy dependencies: docker run -d --name hawser --restart unless-stopped -v /var/run/docker.sock:/var/run/docker.sock -p 2376:2376 -e TOKEN=your-secret-token ghcr.io/finsys/hawser:latest Generate the token first with openssl rand -base64 32 rather than typing something by hand.\n    \n2. Decide Standard vs Edge mode\n\t   Standard mode: Hawser listens on the Pi at port 2376 and Dockhand connects out to it. Simplest choice on a stable LAN/Tailscale setup like yours — bind it to the Pi's Tailscale IP rather than 0.0.0.0 so it's only reachable over the tailnet. \n\t   Edge mode (agent dials out to Dockhand instead) is for boxes behind NAT/dynamic IP with no inbound reachability at all — not really necessary for you since Tailscale already gives you a stable reachable IP.\n    \n3. Add the environment in Dockhand \n\t   In Dockhand's UI: Settings → Environments → Add Environment. Give it a name (e.g. 'Raspberry'), set connection type to Hawser agent, enter the Pi's Tailscale IP and port 2376, paste in the token, then Test Connection.\n    \n4. Confirm and switch between hosts \n\t   Once connected, the Pi's containers, images, volumes, and stacks show up alongside the Optiplex's in the same dashboard. Switching between environments is a dropdown at the top of the UI — same terminal/logs access on both.\n\n---\n[[00 Apps|home]] | | source"
+  },
+  "hawser": {
+    "serviceId": "hawser",
+    "sourceFile": "Hawser.md",
+    "title": "Hawser",
+    "frontmatter": {
+      "tags": [
+        "Homelab/Apps"
+      ],
+      "aliases": [
+        "Hawser"
+      ],
+      "ITname": "Hawser",
+      "ITcategory": "Docker management",
+      "ITmachine": [
+        "Raspberry Pi"
+      ],
+      "ITinstalltype": "docker",
+      "ITstatus": [
+        "installed"
+      ],
+      "comments": "Remote Docker agent so Dockhand (OptiPi) can manage the Pi's containers",
+      "url": "https://192.168.0.195:2376"
+    },
+    "summary": "Hawser Hawser A lightweight remote-agent that exposes a Pi's Docker socket over an authenticated HTTPS API, so [[Dockhand]] running on the OptiPi docker LXC can see and manage containers on the Raspberry Pi without a loc",
+    "links": [
+      {
+        "label": "Finsys",
+        "url": "https://github.com/Finsys"
+      },
+      {
+        "label": "GitHub - Finsys/hawser",
+        "url": "https://github.com/Finsys/hawser"
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "sudo mkdir -p /home/apps/hawser\nsudo nano /home/apps/hawser/docker-compose.yaml"
+      },
+      {
+        "language": "yaml",
+        "code": "services:\n  hawser:\n    image: ghcr.io/finsys/hawser:latest\n    container_name: hawser\n    restart: unless-stopped\n    ports:\n      - \"2376:2376\"\n    environment:\n      - TOKEN=${HAWSER_TOKEN}\n      - PORT=2376\n      - DOCKER_SOCKET=/var/run/docker.sock\n      - STACKS_DIR=/data/stacks\n      - HEARTBEAT_INTERVAL=30\n      - REQUEST_TIMEOUT=30\n      - RECONNECT_DELAY=1\n      - MAX_RECONNECT_DELAY=60\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - hawser_stacks:/data/stacks\n\nvolumes:\n  hawser_stacks:"
+      },
+      {
+        "language": "bash",
+        "code": "sudo nano /home/apps/hawser/.env"
+      },
+      {
+        "language": "bash",
+        "code": "HAWSER_TOKEN="
+      },
+      {
+        "language": "bash",
+        "code": "docker compose -f /home/apps/hawser/docker-compose.yaml up -d"
+      }
+    ],
+    "markdown": "## Hawser\n\nA lightweight remote-agent that exposes a Pi's Docker socket over an authenticated HTTPS API, so [[Dockhand]] running on the OptiPi docker LXC can see and manage containers on the Raspberry Pi without a local Dockhand install there. Same publisher as Dockhand ([Finsys](https://github.com/Finsys)).\n\n---\n[GitHub - Finsys/hawser](https://github.com/Finsys/hawser)\n\nNo web UI — it's an API-only agent. Health check: `https://192.168.0.195:2376/_hawser/health`. Add it as a remote host inside Dockhand's own settings using the token below.\n\n---\n### Installation\n\nNo compose file was found on disk for this container — it was likely started with a one-off `docker run`. Config below is reconstructed from `docker inspect` and should be turned into a proper compose file next time it's touched:\n\n```bash\nsudo mkdir -p /home/apps/hawser\nsudo nano /home/apps/hawser/docker-compose.yaml\n```\n\n```yaml\nservices:\n  hawser:\n    image: ghcr.io/finsys/hawser:latest\n    container_name: hawser\n    restart: unless-stopped\n    ports:\n      - \"2376:2376\"\n    environment:\n      - TOKEN=${HAWSER_TOKEN}\n      - PORT=2376\n      - DOCKER_SOCKET=/var/run/docker.sock\n      - STACKS_DIR=/data/stacks\n      - HEARTBEAT_INTERVAL=30\n      - REQUEST_TIMEOUT=30\n      - RECONNECT_DELAY=1\n      - MAX_RECONNECT_DELAY=60\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - hawser_stacks:/data/stacks\n\nvolumes:\n  hawser_stacks:\n```\n\n```bash\nsudo nano /home/apps/hawser/.env\n```\n\n```bash\nHAWSER_TOKEN=\n```\n\n```bash\ndocker compose -f /home/apps/hawser/docker-compose.yaml up -d\n```\n\nGenerate `HAWSER_TOKEN` from Dockhand's \"add remote host\" flow (or any random secret — it just has to match what's entered in Dockhand for this host).\n\n---\n>[[00 Homelab|home]] | [[Dockhand|Dockhand]]"
+  },
   "homeassistant": {
     "serviceId": "homeassistant",
     "sourceFile": "Homeassistant.md",
@@ -15,12 +329,19 @@ export const serviceDocs = {
         "OptiPi"
       ],
       "ITcategory": "Smart Home",
-      "ITinstalltype": "docker",
+      "ITinstalltype": [
+        "script"
+      ],
       "ITstatus": [
-        "todo"
+        "installed"
+      ],
+      "comments": "Home automation platform — runs as its own HA OS VM, not Docker",
+      "url": [
+        "http://192.168.0.193:8123",
+        "https://ha.local.jalubru.com"
       ]
     },
-    "summary": "Homeassistant [Text - github rpi-nas](https://github.com/timoknapp/rpi-nas) Back to - Installation together with Nginx Proxy Manager",
+    "summary": "Homeassistant Homeassistant Home automation hub — device/integration control, dashboards, and automations. Running as the official Home Assistant OS appliance in its own Proxmox VM (`104`), **not** as a Docker container ",
     "links": [
       {
         "label": "Text - github rpi-nas",
@@ -29,88 +350,329 @@ export const serviceDocs = {
     ],
     "codeBlocks": [
       {
+        "language": "bash",
+        "code": "bash -c \"$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/vm/haos-vm.sh)\""
+      },
+      {
         "language": "yaml",
         "code": "version: \"3\" # can be adapapted if necessary\nservices:\n  homeassistant: # homeassistant\n    image: homeassistant/raspberrypi4-homeassistant:stable\n    container_name: homeassistant\n    environment:\n      - TZ=Europe/Berlin\n    volumes:\n      - ${PATH_TO_DISK}/appdata/homeassistant:/config\n    ports:\n      - 8123:8123\n    restart: unless-stopped"
       },
       {
         "language": "yaml",
-        "code": "version: \"3\"\nservices:\n  homeassistant: \n    image: lscr.io/linuxserver/homeassistant:latest \n    container_name: homeassistant \n    environment: \n      - PUID=1000 \n      - PGID=1000 \n      - TZ=Europe/Riga \n    volumes: \n      - ./hass/config:/config \n    restart: unless-stopped"
+        "code": "version: \"3\"\nservices:\n  homeassistant: \n    image: lscr.io/linuxserver/homeassistant:latest \n    container_name: homeassistant \n    environment: \n      - PUID=1000 \n      - PGID=1000 \n      - TZ=Europe/Riga \n    volumes: \n      - ./hass/config:/config \n    restart: unless-stopped "
       }
     ],
-    "markdown": "## Homeassistant\n\n---\n[Text - github rpi-nas](https://github.com/timoknapp/rpi-nas)\n\n---\n\n[[Nginx Proxy Manager|Back to - Installation together with Nginx Proxy Manager]]\n### Docker Compose\n\n```yaml\nversion: \"3\" # can be adapapted if necessary\nservices:\n  homeassistant: # homeassistant\n    image: homeassistant/raspberrypi4-homeassistant:stable\n    container_name: homeassistant\n    environment:\n      - TZ=Europe/Berlin\n    volumes:\n      - ${PATH_TO_DISK}/appdata/homeassistant:/config\n    ports:\n      - 8123:8123\n    restart: unless-stopped\n```\n\n```yaml\nversion: \"3\"\nservices:\n  homeassistant: \n    image: lscr.io/linuxserver/homeassistant:latest \n    container_name: homeassistant \n    environment: \n      - PUID=1000 \n      - PGID=1000 \n      - TZ=Europe/Riga \n    volumes: \n      - ./hass/config:/config \n    restart: unless-stopped \n```\n\n---\n>[[00 Homelab|home]]"
+    "markdown": "## Homeassistant\n\nHome automation hub — device/integration control, dashboards, and automations. Running as the official Home Assistant OS appliance in its own Proxmox VM (`104`), **not** as a Docker container — see the note on `ITinstalltype` below.\n\n> [!note] Frontmatter still says `ITinstalltype: docker`, but this is actually the HA OS VM appliance (see below) — the Docker Compose route was the original plan and was never used. Worth fixing the field once confirmed.\n\n---\n[Text - github rpi-nas](https://github.com/timoknapp/rpi-nas)\n\n---\n### Home Assistant OS VM\n\nInstalled via the Proxmox VE community script, which downloads the official HA OS qcow2 image and creates a VM from it (UEFI, VirtIO disk/net):\n\n```bash\nbash -c \"$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/vm/haos-vm.sh)\"\n```\n\nRuns as VM `104` on `optipi`, LAN IP `192.168.0.193`. Web UI on `8123`; the onboard \"observer\" recovery console is on `4357` (`http://192.168.0.193:4357`) for when the main UI is unreachable.\n\n---\n\n[[Nginx Proxy Manager|Back to - Installation together with Nginx Proxy Manager]]\n### Docker Compose (not in use)\n\n```yaml\nversion: \"3\" # can be adapapted if necessary\nservices:\n  homeassistant: # homeassistant\n    image: homeassistant/raspberrypi4-homeassistant:stable\n    container_name: homeassistant\n    environment:\n      - TZ=Europe/Berlin\n    volumes:\n      - ${PATH_TO_DISK}/appdata/homeassistant:/config\n    ports:\n      - 8123:8123\n    restart: unless-stopped\n```\n\n```yaml\nversion: \"3\"\nservices:\n  homeassistant: \n    image: lscr.io/linuxserver/homeassistant:latest \n    container_name: homeassistant \n    environment: \n      - PUID=1000 \n      - PGID=1000 \n      - TZ=Europe/Riga \n    volumes: \n      - ./hass/config:/config \n    restart: unless-stopped \n```\n\n---\n>[[00 Homelab|home]]"
   },
-  "plex": {
-    "serviceId": "plex",
-    "sourceFile": "Plex.md",
-    "title": "Plex",
+  "homebox": {
+    "serviceId": "homebox",
+    "sourceFile": "HomeBox.md",
+    "title": "HomeBox",
     "frontmatter": {
       "tags": [
         "Homelab/Apps"
       ],
       "aliases": [
-        "Plex"
+        "HomeBox"
       ],
-      "ITname": "Plex",
+      "ITname": "HomeBox",
+      "ITcategory": "Organisation",
+      "ITmachine": [
+        "OptiPi"
+      ],
+      "ITinstalltype": "docker",
+      "ITstatus": [
+        "installed"
+      ]
+    },
+    "summary": "Homebox [Video - DB Tech](https://www.youtube.com/watch?v=QwfJZ2sUDUE) [Video - Awesome Open Source](https://www.youtube.com/watch?v=XawMT0fg_To)",
+    "links": [
+      {
+        "label": "Video - DB Tech",
+        "url": "https://www.youtube.com/watch?v=QwfJZ2sUDUE"
+      },
+      {
+        "label": "Video - Awesome Open Source",
+        "url": "https://www.youtube.com/watch?v=XawMT0fg_To"
+      },
+      {
+        "label": "Quick Start - Docker-Compose",
+        "url": "https://hay-kot.github.io/homebox/quick-start/#docker-compose"
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "sudo mkdir /home/apps/homebox"
+      },
+      {
+        "language": "bash",
+        "code": "sudo nano /home/apps/homebox/docker-compose.yaml"
+      },
+      {
+        "language": "yml",
+        "code": "services:\n  homebox:\n    image: ghcr.io/hay-kot/homebox:latest \n    container_name: homebox\n    networks:\n      - proxy\n    environment: \n    - HBOX_LOG_LEVEL=critical \n    - HBOX_LOG_FORMAT=text\n    - HBOX_WEB_MAX_UPLOAD_SIZE=10 \n    volumes: \n    - /home/apps/homebox/data:/data/\n    ports:\n      - 3100:7745\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.homebox.rule=Host(`homebox.local.jalubru.com`)\"\n      - \"traefik.http.routers.homebox.entrypoints=https\"\n      - \"traefik.http.routers.homebox.tls=true\"\n      - \"traefik.http.services.homebox.loadbalancer.server.port=7745\"\n    restart: unless-stopped\n\nvolumes: \n  homebox-data: \n    driver: local\n\nnetworks:\n  proxy:\n    external: true"
+      },
+      {
+        "language": "bash",
+        "code": "docker compose -f /home/apps/homebox/docker-compose.yaml up -d"
+      }
+    ],
+    "markdown": "## Homebox\n\n---\n[Video - DB Tech](https://www.youtube.com/watch?v=QwfJZ2sUDUE)\n[Video - Awesome Open Source](https://www.youtube.com/watch?v=XawMT0fg_To)\n\n---\n### Installation\n[Quick Start - Docker-Compose](https://hay-kot.github.io/homebox/quick-start/#docker-compose)\n\n```bash\nsudo mkdir /home/apps/homebox\n```\n\n```bash\nsudo nano /home/apps/homebox/docker-compose.yaml\n```\n\n```yml\nservices:\n  homebox:\n    image: ghcr.io/hay-kot/homebox:latest \n    container_name: homebox\n    networks:\n      - proxy\n    environment: \n    - HBOX_LOG_LEVEL=critical \n    - HBOX_LOG_FORMAT=text\n    - HBOX_WEB_MAX_UPLOAD_SIZE=10 \n    volumes: \n    - /home/apps/homebox/data:/data/\n    ports:\n      - 3100:7745\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.homebox.rule=Host(`homebox.local.jalubru.com`)\"\n      - \"traefik.http.routers.homebox.entrypoints=https\"\n      - \"traefik.http.routers.homebox.tls=true\"\n      - \"traefik.http.services.homebox.loadbalancer.server.port=7745\"\n    restart: unless-stopped\n\nvolumes: \n  homebox-data: \n    driver: local\n\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\ndocker compose -f /home/apps/homebox/docker-compose.yaml up -d\n```\n\n---\n\n### Env Variable Options\n\n| Variable                             | Default                 | Description                                                                       |\n| ------------------------------------ | ----------------------- | --------------------------------------------------------------------------------- |\n| HBOX_MODE                            | production              | application mode used for runtime behavior can be one of: development, production |\n| HBOX_WEB_PORT                        | 7745                    | port to run the web server on, if you're using docker do not change this          |\n| HBOX_WEB_HOST                        |                         | host to run the web server on, if you're using docker do not change this          |\n| HBOX_OPTIONS_ALLOW\\_</br>REGISTRATION      | true                    | allow users to register themselves                                                |\n| HBOX_OPTIONS_AUTO\\_</br>INCREMENT_ASSET_ID | true                    | auto increments the asset_id field for new items                                  |\n| HBOX_WEB_MAX\\_</br>UPLOAD_SIZE             | 10                      | maximum file upload size supported in MB                                          |\n| HBOX_STORAGE_DATA                    | /data/                  | path to the data directory, do not change this if you're using docker             |\n| HBOX_STORAGE_SQLITE_URL              | /data/</br>homebox.db?\\_fk=1 | sqlite database url, in you're using docker do not change this                    |\n| HBOX_LOG_LEVEL                       | info                    | log level to use, can be one of: trace, debug, info, warn, error, critical        |\n| HBOX_LOG_FORMAT                      | text                    | log format to use, can be one of: text, json                                      |\n| HBOX_MAILER_HOST                     |                         | email host to use, if not set no email provider will be used                      |\n| HBOX_MAILER_PORT                     | 587                     | email port to use                                                                 |\n| HBOX_MAILER_USERNAME                 |                         | email user to use                                                                 |\n| HBOX_MAILER_PASSWORD                 |                         | email password to use                                                             |\n| HBOX_MAILER_FROM                     |                         | email from address to use                                                         |\n| HBOX_SWAGGER_HOST                    | 7745                    | swagger host to use, if not set swagger will be disabled                          |\n| HBOX_SWAGGER_SCHEMA                  | http                    | swagger schema to use, can be one of: http, https                                 |\n\n---\n[[00 Homelab|home]] | origin | source"
+  },
+  "it-tools": {
+    "serviceId": "it-tools",
+    "sourceFile": "IT-tools.md",
+    "title": "IT-tools",
+    "frontmatter": {
+      "tags": [
+        "Homelab/Apps"
+      ],
+      "aliases": [
+        "IT-tools"
+      ],
+      "ITname": "IT-tools",
+      "ITcategory": "Utility",
+      "ITmachine": [
+        "OptiPi"
+      ],
+      "ITinstalltype": "docker",
+      "ITstatus": [
+        "installed"
+      ],
+      "url": "ittools.local.jalubru.com"
+    },
+    "summary": "IT-Tools docker home",
+    "links": [
+      {
+        "label": "github.com/CorentinTh/it-tools",
+        "url": "https://github.com/CorentinTh/it-tools"
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "text",
+        "code": "docker run -d --name it-tools --restart unless-stopped -p 8080:80 corentinth/it-tools:latest"
+      },
+      {
+        "language": "yaml",
+        "code": "services:\n  it-tools:\n    image: corentinth/it-tools:latest\n    container_name: it-tools\n    ports: 8080:80\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.twitchbot.rule=Host(`ittools.local.jalubru.com`)\"\n      - \"traefik.http.routers.ittools.entrypoints=https\"\n      - \"traefik.http.routers.ittools.tls=true\"\n      - \"traefik.http.services.ittools.loadbalancer.server.port=80\"\n    networks:\n      - proxy\n    restart: unless-stopped\n    pull_policy: always\n\nnetworks:\n  proxy:\n    external: true"
+      },
+      {
+        "language": "bash",
+        "code": "sudo mkdir -p /home/server/apps/ittools"
+      },
+      {
+        "language": "bash",
+        "code": "sudo nano /home/server/apps/ittools/docker-compose.yaml"
+      },
+      {
+        "language": "yaml",
+        "code": "services:\n  it-tools:\n    image: corentinth/it-tools:latest\n    container_name: it-tools\n    ports: \n      - 8080:80\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.ittools.rule=Host(`ittools.local.jalubru.com`)\"\n      - \"traefik.http.routers.ittools.entrypoints=https\"\n      - \"traefik.http.routers.ittools.tls=true\"\n      - \"traefik.http.services.ittools.loadbalancer.server.port=8080\"\n    networks:\n      - proxy\n    restart: unless-stopped\n    pull_policy: always\n\nnetworks:\n  proxy:\n    external: true"
+      },
+      {
+        "language": "bash",
+        "code": "docker compose -f /home/server/apps/ittools/docker-compose.yaml up -d"
+      }
+    ],
+    "markdown": "## IT-Tools\n\n---\nhttps://github.com/CorentinTh/it-tools\n\n---\n### docker\n\n```\ndocker run -d --name it-tools --restart unless-stopped -p 8080:80 corentinth/it-tools:latest\n```\n\n```yaml\nservices:\n  it-tools:\n    image: corentinth/it-tools:latest\n    container_name: it-tools\n    ports: 8080:80\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.twitchbot.rule=Host(`ittools.local.jalubru.com`)\"\n      - \"traefik.http.routers.ittools.entrypoints=https\"\n      - \"traefik.http.routers.ittools.tls=true\"\n      - \"traefik.http.services.ittools.loadbalancer.server.port=80\"\n    networks:\n      - proxy\n    restart: unless-stopped\n    pull_policy: always\n\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\nsudo mkdir -p /home/server/apps/ittools\n```\n\n```bash\nsudo nano /home/server/apps/ittools/docker-compose.yaml\n```\n\n```yaml\nservices:\n  it-tools:\n    image: corentinth/it-tools:latest\n    container_name: it-tools\n    ports: \n      - 8080:80\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.ittools.rule=Host(`ittools.local.jalubru.com`)\"\n      - \"traefik.http.routers.ittools.entrypoints=https\"\n      - \"traefik.http.routers.ittools.tls=true\"\n      - \"traefik.http.services.ittools.loadbalancer.server.port=8080\"\n    networks:\n      - proxy\n    restart: unless-stopped\n    pull_policy: always\n\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\ndocker compose -f /home/server/apps/ittools/docker-compose.yaml up -d\n```\n\n---\n>[[00 Homelab|home]]"
+  },
+  "jalubase": {
+    "serviceId": "jalubase",
+    "sourceFile": "Jalubase.md",
+    "title": "Jalubase",
+    "frontmatter": {
+      "tags": [
+        "Homelab/Apps"
+      ],
+      "aliases": [
+        "Jalubase"
+      ],
+      "ITname": "Jalubase",
+      "ITcategory": "Organisation",
+      "ITmachine": [
+        "OptiPi"
+      ],
+      "ITinstalltype": "docker",
+      "ITstatus": [
+        "installed"
+      ],
+      "comments": "Self-built personal capture/memory dashboard (Next.js + Postgres)",
+      "url": "http://192.168.0.191:3001"
+    },
+    "summary": "Jalubase Jalubase A low-friction personal dashboard for broad capture, memory, and later resurfacing — quick-add raw thoughts, links, quotes, things to buy, books/movies, person notes, and project/health notes, then resu",
+    "links": [
+      {
+        "label": "GitHub - JaLuBru/jalubase",
+        "url": "https://github.com/JaLuBru/jalubase"
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "sudo mkdir -p /home/apps/jalubase\ncd /home/apps/jalubase\ngit clone https://github.com/JaLuBru/jalubase.git ."
+      },
+      {
+        "language": "bash",
+        "code": "sudo nano /home/apps/jalubase/.env"
+      },
+      {
+        "language": "bash",
+        "code": "APP_PORT=3001"
+      },
+      {
+        "language": "yaml",
+        "code": "services:\n  app:\n    build:\n      context: .\n    depends_on:\n      db:\n        condition: service_healthy\n    environment:\n      DATABASE_URL: postgres://dashboard:dashboard@db:5432/personal_dashboard\n    ports:\n      - \"${APP_PORT:-3000}:3000\"\n    restart: unless-stopped\n\n  db:\n    image: postgres:17-alpine\n    environment:\n      POSTGRES_DB: personal_dashboard\n      POSTGRES_USER: dashboard\n      POSTGRES_PASSWORD: dashboard\n    healthcheck:\n      test: [\"CMD-SHELL\", \"pg_isready -U dashboard -d personal_dashboard\"]\n      interval: 5s\n      timeout: 5s\n      retries: 10\n    ports:\n      - \"5432:5432\"\n    volumes:\n      - dashboard_postgres:/var/lib/postgresql/data\n      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro\n    restart: unless-stopped\n\nvolumes:\n  dashboard_postgres:"
+      },
+      {
+        "language": "bash",
+        "code": "APP_PORT=3001 docker compose -f /home/apps/jalubase/docker-compose.yml up --build -d"
+      }
+    ],
+    "markdown": "## Jalubase\n\nA low-friction personal dashboard for broad capture, memory, and later resurfacing — quick-add raw thoughts, links, quotes, things to buy, books/movies, person notes, and project/health notes, then resurface the right ones later instead of losing them in a task list. Own project, not a third-party app.\n\n---\n[GitHub - JaLuBru/jalubase](https://github.com/JaLuBru/jalubase) (private repo)\n\n> [!warning] `jalubase.local.jalubru.com` is registered in [[Pi-Hole]] but has **no route in [[Traefik]]** yet (returns 404) — the `app` service has no `traefik.enable` labels. Access via IP:port for now, or add labels/a `config.yml` entry to fix it.\n\n---\n### Stack\n\n- `app` — Next.js frontend/API, built from source (`build: .`, no prebuilt image)\n- `db` — `postgres:17-alpine`, database `personal_dashboard`\n\n### Installation\n\n```bash\nsudo mkdir -p /home/apps/jalubase\ncd /home/apps/jalubase\ngit clone https://github.com/JaLuBru/jalubase.git .\n```\n\n```bash\nsudo nano /home/apps/jalubase/.env\n```\n\n```bash\nAPP_PORT=3001\n```\n\n```yaml\nservices:\n  app:\n    build:\n      context: .\n    depends_on:\n      db:\n        condition: service_healthy\n    environment:\n      DATABASE_URL: postgres://dashboard:dashboard@db:5432/personal_dashboard\n    ports:\n      - \"${APP_PORT:-3000}:3000\"\n    restart: unless-stopped\n\n  db:\n    image: postgres:17-alpine\n    environment:\n      POSTGRES_DB: personal_dashboard\n      POSTGRES_USER: dashboard\n      POSTGRES_PASSWORD: dashboard\n    healthcheck:\n      test: [\"CMD-SHELL\", \"pg_isready -U dashboard -d personal_dashboard\"]\n      interval: 5s\n      timeout: 5s\n      retries: 10\n    ports:\n      - \"5432:5432\"\n    volumes:\n      - dashboard_postgres:/var/lib/postgresql/data\n      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro\n    restart: unless-stopped\n\nvolumes:\n  dashboard_postgres:\n```\n\n```bash\nAPP_PORT=3001 docker compose -f /home/apps/jalubase/docker-compose.yml up --build -d\n```\n\nDeploy flow going forward: push to GitHub → SSH in → `git pull` → re-run the `up --build -d` command above (port only needs setting if `3000` is already taken on the host).\n\n### Database\n\nPostgres port `5432` is published directly on the host (no Traefik/proxy in front of it — it's meant for direct psql/tooling access, not public exposure). Schema lives in `./db/schema.sql` and is applied automatically on first boot via the Postgres init-scripts mechanism. Core table: `captures` (raw thoughts, links, quotes, tasks, etc. with `domain`, `status`, and `resurface_on` fields).\n\n---\n>[[00 Homelab|home]]"
+  },
+  "jaludash": {
+    "serviceId": "jaludash",
+    "sourceFile": "README.md + DEPLOYMENT.md",
+    "title": "jaludash",
+    "frontmatter": {},
+    "summary": "jaludash — this dashboard itself. Personal homelab inventory, service directory, host health, and reachability checks.",
+    "links": [],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "/home/apps/jaludash"
+      },
+      {
+        "language": "bash",
+        "code": "git clone https://github.com/JaLuBru/jaludash.git /home/apps/jaludash"
+      },
+      {
+        "language": "bash",
+        "code": "docker compose -f /home/apps/jaludash/docker-compose.yml up -d --build"
+      },
+      {
+        "language": "text",
+        "code": "http://192.168.0.191:4173"
+      },
+      {
+        "language": "bash",
+        "code": "cd /home/apps/jaludash\ngit pull\ndocker compose -f /home/apps/jaludash/docker-compose.yml up -d --build"
+      },
+      {
+        "language": "text",
+        "code": "http://192.168.0.192:9100/metrics\nhttp://192.168.0.195:9100/metrics"
+      },
+      {
+        "language": "bash",
+        "code": "npm start"
+      },
+      {
+        "language": "text",
+        "code": "http://localhost:4173"
+      },
+      {
+        "language": "bash",
+        "code": "/home/apps/jaludash"
+      },
+      {
+        "language": "bash",
+        "code": "docker compose -f /home/apps/jaludash/docker-compose.yml up -d --build"
+      },
+      {
+        "language": "text",
+        "code": "http://192.168.0.191:4173"
+      },
+      {
+        "language": "text",
+        "code": "jaludash.local.jalubru.com"
+      },
+      {
+        "language": "bash",
+        "code": "docker compose -f /home/apps/jaludash/docker-compose.yml up -d --build"
+      },
+      {
+        "language": "bash",
+        "code": "cd /home/apps/jaludash\ngit remote set-url origin https://github.com/JaLuBru/jaludash.git\ngit -c credential.helper= pull origin main"
+      },
+      {
+        "language": "yaml",
+        "code": "- /var/run/docker.sock:/var/run/docker.sock:ro"
+      }
+    ],
+    "markdown": "# jaludash\n\nA personal dashboard for keeping track of what is running in your homelab, where it lives, how to reach it, and what needs attention.\n\nThe current version focuses on:\n\n- Service inventory grouped by stack\n- Service wiki/runbook pages generated from local documentation\n- Reachability checks for configured service URLs\n- Host health cards for the Optiplex/Proxmox host and Raspberry Pi\n- Roadmap items that can be added, checked off, and deleted from the app\n- Light and dark mode\n\n## Run On The Server\n\nThe intended deployment path is:\n\n```bash\n/home/apps/jaludash\n```\n\nFirst clone the repository there:\n\n```bash\ngit clone https://github.com/JaLuBru/jaludash.git /home/apps/jaludash\n```\n\nThen start or update it with:\n\n```bash\ndocker compose -f /home/apps/jaludash/docker-compose.yml up -d --build\n```\n\nThe direct dashboard URL is:\n\n```text\nhttp://192.168.0.191:4173\n```\n\n## Update Later\n\nAfter changes are pushed to GitHub:\n\n```bash\ncd /home/apps/jaludash\ngit pull\ndocker compose -f /home/apps/jaludash/docker-compose.yml up -d --build\n```\n\n## Host Health\n\nHost CPU, memory, disk, and uptime details require node_exporter to be reachable from the dashboard container:\n\n```text\nhttp://192.168.0.192:9100/metrics\nhttp://192.168.0.195:9100/metrics\n```\n\nSee `HOST_HEALTH_SETUP.md` for the setup notes.\n\n## Local Development\n\n```bash\nnpm start\n```\n\nThen open:\n\n```text\nhttp://localhost:4173\n```\n\n---\n\n# jaludash Deployment\n\nTarget for the first always-on deployment:\n\n- Proxmox host: optipi\n- Docker LXC: docker\n- Docker LXC IP: 192.168.0.191\n- Direct URL: http://192.168.0.191:4173\n- Optional Traefik host: jaludash.local.jalubru.com\n\n## First Deploy\n\nCopy this project folder to the Docker LXC, for example under:\n\n```bash\n/home/apps/jaludash\n```\n\nThen start it:\n\n```bash\ndocker compose -f /home/apps/jaludash/docker-compose.yml up -d --build\n```\n\nAfter it starts, open:\n\n```text\nhttp://192.168.0.191:4173\n```\n\n## Traefik\n\nThe compose file includes Traefik labels for:\n\n```text\njaludash.local.jalubru.com\n```\n\nThis assumes the external Docker network named `proxy` already exists, matching your HomeBox setup. If the `proxy` network is not available, either create it or temporarily remove the `networks` and `labels` sections and use the direct IP/port URL first.\n\n## Update Later\n\nAfter changing dashboard files:\n\n```bash\ndocker compose -f /home/apps/jaludash/docker-compose.yml up -d --build\n```\n\n## GitHub Pulls On The Server\n\nGitHub no longer accepts account passwords for Git operations. For a public repository, first try clearing any cached credentials and pulling without a prompt:\n\n```bash\ncd /home/apps/jaludash\ngit remote set-url origin https://github.com/JaLuBru/jaludash.git\ngit -c credential.helper= pull origin main\n```\n\nIf the server still asks for a password, use either a GitHub personal access token as the password or switch the remote to SSH with a deploy key.\n\n## Storage And Discovery\n\nStorage uses node_exporter metrics from the configured hosts. Auto-discovery reads the local Docker engine through a read-only socket mount:\n\n```yaml\n- /var/run/docker.sock:/var/run/docker.sock:ro\n```\n\nThis lets jaludash list containers on the Docker LXC and compare them with the inventory. It is read-only from the compose file, but Docker socket access is still powerful, so keep jaludash private to your LAN.\n\n## Current Scope\n\nThis deployment is still read-only, but it now includes live reachability checks and host-health overviews when the configured endpoints are reachable.\n\nNext intended buckets:\n\n1. Improve the service directory page.\n2. Tune service status checks.\n3. Expand host and storage overview.\n4. Add a safer Obsidian-vault refresh workflow.\n\n## Roadmap Data\n\nRoadmap items added in the app are stored in the Docker volume `jaludash-data` at `/app/data`. This keeps them through normal `docker compose -f /home/apps/jaludash/docker-compose.yml up -d --build` rebuilds."
+  },
+  "mealie": {
+    "serviceId": "mealie",
+    "sourceFile": "Mealie.md",
+    "title": "Mealie",
+    "frontmatter": {
+      "tags": [
+        "Homelab/Apps"
+      ],
+      "aliases": [
+        "Mealie"
+      ],
+      "ITname": "Mealie",
+      "ITcategory": "Organisation",
+      "ITmachine": [
+        "OptiPi"
+      ],
+      "ITinstalltype": "docker",
+      "ITstatus": [
+        "installed"
+      ],
+      "comments": "Self-hosted recipe manager and meal planner",
+      "url": [
+        "http://192.168.0.191:9925",
+        "https://mealie.local.jalubru.com"
+      ]
+    },
+    "summary": "Mealie Mealie Self-hosted recipe manager, meal planner, and shopping list. [Installation - Mealie](https://docs.mealie.io/documentation/getting-started/installation/sqlite/) ### Docker Compose >[[00 Homelab|home]]",
+    "links": [
+      {
+        "label": "Installation - Mealie",
+        "url": "https://docs.mealie.io/documentation/getting-started/installation/sqlite/"
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "sudo mkdir -p /home/apps/mealie"
+      },
+      {
+        "language": "bash",
+        "code": "docker volume create mealie-data"
+      },
+      {
+        "language": "bash",
+        "code": "sudo nano /home/apps/mealie/docker-compose.yaml"
+      },
+      {
+        "language": "yaml",
+        "code": "services:\n  mealie:\n    image: ghcr.io/mealie-recipes/mealie:latest # \n    container_name: mealie\n    restart: always\n    ports:\n        - \"9925:9000\" # \n    deploy:\n      resources:\n        limits:\n          memory: 1000M # \n    networks:\n      - proxy\n    volumes:\n      - mealie-data:/app/data/\n    environment:\n      # Set Backend ENV Variables Here\n      ALLOW_SIGNUP: true\n      PUID: 1000\n      PGID: 1000\n      TZ: Europe/Riga\n      MAX_WORKERS: 1\n      WEB_CONCURRENCY: 1\n      BASE_URL: https://192.168.0.191\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.mealie.rule=Host(`mealie.local.jalubru.com`)\"\n      - \"traefik.http.routers.mealie.entrypoints=https\"\n      - \"traefik.http.routers.mealie.tls=true\"\n      - \"traefik.http.services.mealie.loadbalancer.server.port=9000\"\nnetworks:\n  proxy:\n    external: true\nvolumes:\n  mealie-data:"
+      },
+      {
+        "language": "bash",
+        "code": "sudo docker compose -f /home/apps/mealie/docker-compose.yaml up -d"
+      }
+    ],
+    "markdown": "## Mealie\n\nSelf-hosted recipe manager, meal planner, and shopping list.\n\n---\n[Installation - Mealie](https://docs.mealie.io/documentation/getting-started/installation/sqlite/)\n\n---\n### Docker Compose\n\n\n```bash\nsudo mkdir -p /home/apps/mealie\n```\n\n```bash\ndocker volume create mealie-data\n```\n\n```bash\nsudo nano /home/apps/mealie/docker-compose.yaml\n```\n\n```yaml\nservices:\n  mealie:\n    image: ghcr.io/mealie-recipes/mealie:latest # \n    container_name: mealie\n    restart: always\n    ports:\n        - \"9925:9000\" # \n    deploy:\n      resources:\n        limits:\n          memory: 1000M # \n    networks:\n      - proxy\n    volumes:\n      - mealie-data:/app/data/\n    environment:\n      # Set Backend ENV Variables Here\n      ALLOW_SIGNUP: true\n      PUID: 1000\n      PGID: 1000\n      TZ: Europe/Riga\n      MAX_WORKERS: 1\n      WEB_CONCURRENCY: 1\n      BASE_URL: https://192.168.0.191\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.mealie.rule=Host(`mealie.local.jalubru.com`)\"\n      - \"traefik.http.routers.mealie.entrypoints=https\"\n      - \"traefik.http.routers.mealie.tls=true\"\n      - \"traefik.http.services.mealie.loadbalancer.server.port=9000\"\nnetworks:\n  proxy:\n    external: true\nvolumes:\n  mealie-data:\n```\n\n```bash\nsudo docker compose -f /home/apps/mealie/docker-compose.yaml up -d\n```\n\n---\n>[[00 Homelab|home]]"
+  },
+  "mediaserver": {
+    "serviceId": "mediaserver",
+    "sourceFile": "Mediaserver.md",
+    "title": "Mediaserver",
+    "frontmatter": {
+      "tags": [
+        "Homelab/Apps"
+      ],
+      "aliases": [
+        "Mediaserver"
+      ],
+      "ITname": "Plex & Co.",
       "ITcategory": "Mediaserver",
       "ITmachine": [
-        "OptiPi",
-        "Raspberry Pi"
-      ],
-      "ITinstalltype": "docker, lxc",
-      "ITstatus": [
-        "installed"
-      ]
-    },
-    "summary": "Plex [Video - addicted2tech setup plex](https://www.youtube.com/watch?v=XudbMJ_3NRc) [Text - addicted2tech plex setup using docker](https://www.addictedtotech.net/install-plex-on-raspberry-pi-4-using-portainer-docker/)",
-    "links": [
-      {
-        "label": "Video - addicted2tech setup plex",
-        "url": "https://www.youtube.com/watch?v=XudbMJ_3NRc"
-      },
-      {
-        "label": "Text - addicted2tech plex setup using docker",
-        "url": "https://www.addictedtotech.net/install-plex-on-raspberry-pi-4-using-portainer-docker/"
-      },
-      {
-        "label": "Plex Media Server \\| Proxmox VE Helper Scripts",
-        "url": "https://community-scripts.org/scripts/plex"
-      },
-      {
-        "label": "raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/plex.sh",
-        "url": "https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/plex.sh"
-      }
-    ],
-    "codeBlocks": [
-      {
-        "language": "bash",
-        "code": "cd /media/wd2001ext4/apps/mediaserver/plex-config\nsudo nano docker-compose.yaml"
-      },
-      {
-        "language": "yaml",
-        "code": "version: \"2.1\"\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped"
-      },
-      {
-        "language": "bash",
-        "code": "bash -c \"$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/plex.sh)\""
-      }
-    ],
-    "markdown": "## Plex\n\n---\n[Video - addicted2tech setup plex](https://www.youtube.com/watch?v=XudbMJ_3NRc)\n[Text - addicted2tech plex setup using docker](https://www.addictedtotech.net/install-plex-on-raspberry-pi-4-using-portainer-docker/)\n\n---\n```bash\ncd /media/wd2001ext4/apps/mediaserver/plex-config\nsudo nano docker-compose.yaml\n```\n### Docker compose \n\n>[!info] Disclaimer\n>Included in the [[Mediaserver#|Mediastack - Docker Compose]] file!\n\n```yaml\nversion: \"2.1\"\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n```\n\nshare movie downloads to Network [[NFS Server]]\n\n---\n\n### LXC\n\n[Plex Media Server \\| Proxmox VE Helper Scripts](https://community-scripts.org/scripts/plex)\n#### Installation\n```bash\nbash -c \"$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/plex.sh)\"\n```\n\n---\n>[[00 Homelab|home]]"
-  },
-  "watchtower-optipi": {
-    "serviceId": "watchtower-optipi",
-    "sourceFile": "Watchtower.md",
-    "title": "Watchtower",
-    "frontmatter": {
-      "tags": [
-        "Homelab/Apps"
-      ],
-      "aliases": [
-        "Watchtower"
-      ],
-      "ITname": "Watchtower",
-      "ITcategory": "Network Monitoring",
-      "ITmachine": [
-        "OptiPi",
         "Raspberry Pi"
       ],
       "ITinstalltype": "docker",
@@ -118,379 +680,217 @@ export const serviceDocs = {
         "installed"
       ]
     },
-    "summary": "Watchtower [Container.dev/Watchtower](https://containrrr.dev/watchtower/) [Text - Watchtower Telegram Notifications](https://github.com/Pyenb/Watchtower-telegram-notifications)",
+    "summary": "Mediaserver Torrent - qBitTorrent Setup NZB - SABnzb Setup",
     "links": [
       {
-        "label": "Container.dev/Watchtower",
-        "url": "https://containrrr.dev/watchtower/"
+        "label": "Jellyfin API",
+        "url": "https://jellyfin.jalubru.duckdns.org/web/index.html#!/apikeys.html"
       },
       {
-        "label": "Text - Watchtower Telegram Notifications",
-        "url": "https://github.com/Pyenb/Watchtower-telegram-notifications"
+        "label": "github.com/qdm12/gluetun/wiki",
+        "url": "https://github.com/qdm12/gluetun/wiki"
+      },
+      {
+        "label": "raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json",
+        "url": "https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json"
+      },
+      {
+        "label": "192.168.0.195:32400/web",
+        "url": "http://192.168.0.195:32400/web"
+      },
+      {
+        "label": "192.168.0.195:8181",
+        "url": "http://192.168.0.195:8181"
+      },
+      {
+        "label": "192.168.0.195:8096",
+        "url": "http://192.168.0.195:8096"
+      },
+      {
+        "label": "192.168.0.195:6555",
+        "url": "http://192.168.0.195:6555"
+      },
+      {
+        "label": "jellyfin.jalubru.duckdns.org",
+        "url": "https://jellyfin.jalubru.duckdns.org"
+      },
+      {
+        "label": "192.168.0.195:7878",
+        "url": "http://192.168.0.195:7878"
+      },
+      {
+        "label": "192.168.0.195:8989",
+        "url": "http://192.168.0.195:8989"
+      },
+      {
+        "label": "192.168.0.195:9696",
+        "url": "http://192.168.0.195:9696"
+      },
+      {
+        "label": "wiki.bazarr.media",
+        "url": "https://wiki.bazarr.media"
       }
     ],
     "codeBlocks": [
       {
         "language": "bash",
-        "code": "sudo mkdir /home/apps/watchtower"
+        "code": "docker network create mediastack\nsudo mkdir -p /media/wd2001ext4/apps/mediaserver/{plex-config,tautulli-config,plex-logs,radarr-config,sonarr-config,prowlarr-config,bazarr-config,qbittorrent-config,sabnzbd-config}"
       },
       {
         "language": "bash",
-        "code": "sudo nano /home/apps/watchtower/docker-compose.yaml"
+        "code": "sudo nano /media/wd2001ext4/apps/mediaserver/docker-compose.yaml"
       },
       {
         "language": "yaml",
-        "code": "services:\n  watchtower:\n    image: containrrr/watchtower\n    container_name: watchtower\n    hostname: opti/raspi\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n    environment:\n      - TZ=Europe/Riga\n      - WATCHTOWER_NOTIFICATIONS=shoutrrr\n      - WATCHTOWER_NOTIFICATION_URL=telegram://[REDACTED-TELEGRAM-BOT-TOKEN]@telegram?chats=[REDACTED-CHAT-ID]\n      - WATCHTOWER_CLEANUP=true\n      - WATCHTOWER_INCLUDE_RESTARTING=true\n      - WATCHTOWER_INCLUDE_STOPPED=true\n      - WATCHTOWER_SCHEDULE= 0 0 04 ? * FRI #At 04:00 AM, only on Friday\n    restart: unless-stopped\n    pull_policy: always"
+        "code": "name: media-stack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\n  ## Default credentials of qBittorrent - Username: admin password: adminadmin ##\n  ## Change password after install from UI --> Tools --> Options --> WebUI ##\n  qbittorrent:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    # image: lscr.io/linuxserver/qbittorrent:4.5.4 older version\n    container_name: qbittorrent\n    # Unomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # Comment below lines if VPN is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    # Unomment below line if vpn is enabled\n    # network_mode: service:vpn\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - WEBUI_PORT=5080\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/qbittorrent-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ## Comment/Disable below ports if VPN is enabled\n    ports:\n      - 5080:5080\n      - 6881:6881\n      - 6881:6881/udp\n    restart: unless-stopped\n    pull_policy: always\n\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    # image: lscr.io/linuxserver/radarr:4.7.5 older version\n    container_name: radarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    ports:\n      - 7878:7878\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/radarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    restart: unless-stopped\n    pull_policy: always\n\n  sonarr:\n    image: linuxserver/sonarr:latest #using v4 instead of v3\n##    image: linuxserver/sonarr:4.0.0-develop\n    container_name: sonarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sonarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ports:\n      - 8989:8989\n    restart: unless-stopped\n    pull_policy: always\n\n  prowlarr:\n    image: linuxserver/prowlarr:latest\n    container_name: prowlarr\n    # Uncomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # network_mode: service:vpn # Uncomment this line if vpn is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/prowlarr-config:/config\n    # Comment below ports if VPN is enabled.\n    ports:\n      - 9696:9696\n    restart: unless-stopped\n    pull_policy: always\n\n## Subtitel Manager and Downloader\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: bazarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/bazarr-config:/config\n      - /media/wd2001ext4/media/downloads/movies:/movies\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n    ports:\n      - 6767:6767\n    restart: unless-stopped\n    pull_policy: always\n\n## NZB Provider\n  sabnzbd:\n    image: lscr.io/linuxserver/sabnzbd:latest\n    container_name: sabnzbd\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sabnzbd-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n      - /media/wd2001ext4/media/incomplete-downloads:/incomplete-downloads\n    ports:\n      - 8070:8080\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n  radarr-config:\n  sonarr-config:\n  prowlarr-config:\n  bazarr-config:\n  qbittorrent-config:\n  sabnzbd-config:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true"
       },
       {
         "language": "bash",
-        "code": "docker compose -f /home/apps/watchtower/docker-compose.yaml up -d"
+        "code": "sudo docker compose -f /media/wd2001ext4/apps/mediaserver/docker-compose.yaml up -d"
+      },
+      {
+        "language": "bash",
+        "code": "docker network create mediastack"
+      },
+      {
+        "language": "bash",
+        "code": "sudo mkdir /mediaserver\nsudo nano /mediaserver/docker-compose.yaml"
       },
       {
         "language": "yaml",
-        "code": "##      - WATCHTOWER_SCHEDULE= 0 0 04 ? * FRI #At 04:00 AM, only on Friday\n      - WATCHTOWER_RUN_ONCE=true"
+        "code": "name: mediastack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /mnt/media/wd2001ext4/media/downloads/tvshows:/tv\n      - /mnt/media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true"
+      },
+      {
+        "language": "bash",
+        "code": "sudo docker compose -f /mediaserver/docker-compose.yaml up -d"
+      },
+      {
+        "language": "yaml",
+        "code": "# To use/enable VPN, Run this compose file with --profile=vpn. Its highly recommended to use VPN.\n  vpn:\n  ## Read https://github.com/qdm12/gluetun/wiki for details on configuring VPN for different service providers.\n    profiles: [\"vpn\"]\n    container_name: vpn\n    image: qmcgaw/gluetun:v3.35.0\n    cap_add:\n      - NET_ADMIN\n    environment:\n      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-nordvpn} # Valid values: nordvpn, expressvpn, protonvpn, surfshark or custom\n      - OPENVPN_USER=[REDACTED]\n      - OPENVPN_PASSWORD=[REDACTED]\n\n      ## For list of server countries, visit https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json\n\n      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-Latvia}\n    \n      # - FREE_ONLY=on  # Valid with protonvpn only. Value willbe set \"on\" if using free subscription provided by protonvpn\n\n      ## Enable below if VPN_SERVICE_PROVIDER=custom\n      # - VPN_TYPE=openvpn # or wireguard. \n\n      ## If VPN_TYPE is openvpn\n      # - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf\n\n      ## If VPN_TYPE is wireguard. Replace below env variables as required.\n      # - VPN_ENDPOINT_IP=1.2.3.4                                               # Replace with your wg endpoint ip or domain\n      # - VPN_ENDPOINT_PORT=51820                                               # Replace with wg server port\n      # - WIREGUARD_PUBLIC_KEY=[REDACTED]     # Replace with your wg public key\n      # - WIREGUARD_PRIVATE_KEY=[REDACTED]    # Replace with your wg client private key\n      # - WIREGUARD_PRESHARED_KEY=[REDACTED]  # Replaced with your wg pre-shared key\n      # - WIREGUARD_ADDRESSES=\"10.64.222.21/32\"                                 # Replace with wg address\n\n    ## Enable volume if VPN_SERVICE_PROVIDER=custom and VPN_TYPE=openvpn is used\n    # volumes:\n      # - /yourpath/yourconfig.conf:/gluetun/config.conf:ro\n\n    networks:\n      - mediastack\n    \n    # Uncomment/enable below ports if VPN is used/enabled\n    # ports:\n    #   # qbittorrent ports\n    #   - 5080:5080\n    #   - 6881:6881\n    #   - 6881:6881/udp\n    #   # prowlarr ports\n    #   - 9696:9696\n    restart: \"unless-stopped\"\n\n  jellyfin:\n    image: linuxserver/jellyfin:latest\n    container_name: jellyfin\n    # image: linuxserver/jellyfin:10.8.10 - old image\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/jellyfin-config:/config\n      - /media/wd2001ext4/media/downloads:/data\n  # devices:\n  #  - /dev/videoN:/dev/videoN # Mount GPU device \n    ports:\n      - 8096:8096\n      - 7359:7359/udp\n      - 8920:8920\n    restart: unless-stopped\n\n## Jellyfin stats\n  embystat:\n    image: lscr.io/linuxserver/embystat:latest\n    container_name: embystat\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/embystat-config:/config\n    ports:\n      - 6555:6555\n    restart: unless-stopped\n\n  cleanmyarr:\n    depends_on:\n      - radarr\n      - sonarr\n    image: linuxshots/cleanmyarr:0.4.1-beta\n    container_name: cleanmyarr\n    networks:\n      - mediastack\n      - proxy\n    volumes:\n      - cleanmyarr-config:/config\n    restart: unless-stopped\n  \nvolumes:\n  jellyfin-config:\n  embystat-config:\n  sabnzbd-config:\n  cleanmyarr-config:"
+      },
+      {
+        "language": "text",
+        "code": "location /jellyfin {\n        return 302 $scheme://$host/jellyfin/;\n    }\n\n    location /jellyfin/ {\n\n        proxy_pass http://jellyfin:8096/jellyfin/;\n\n        proxy_pass_request_headers on;\n\n        proxy_set_header Host $host;\n\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Forwarded-Host $http_host;\n\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection $http_connection;\n\n        # Disable buffering when the nginx proxy gets very resource heavy upon streaming\n        proxy_buffering off;\n    }"
+      },
+      {
+        "language": "text",
+        "code": "location /radarr {\n    proxy_pass http://radarr:7878;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }"
+      },
+      {
+        "language": "text",
+        "code": "location /radarr {\n    proxy_pass http://sonarr:8989;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }"
+      },
+      {
+        "language": "text",
+        "code": "location /prowlarr {\n    proxy_pass http://prowlarr:9696; # Comment this line if VPN is enabled.\n    # proxy_pass http://vpn:9696; # Uncomment this line if VPN is enabled.\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }"
       }
     ],
-    "markdown": "## Watchtower\n\n---\n[Container.dev/Watchtower](https://containrrr.dev/watchtower/)\n[Text - Watchtower Telegram Notifications](https://github.com/Pyenb/Watchtower-telegram-notifications)\n\n---\n\n### Docker-Compose\n\n```bash\nsudo mkdir /home/apps/watchtower\n```\n\n```bash\nsudo nano /home/apps/watchtower/docker-compose.yaml\n```\n\n```yaml\nservices:\n  watchtower:\n    image: containrrr/watchtower\n    container_name: watchtower\n    hostname: opti/raspi\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n    environment:\n      - TZ=Europe/Riga\n      - WATCHTOWER_NOTIFICATIONS=shoutrrr\n      - WATCHTOWER_NOTIFICATION_URL=telegram://[REDACTED-TELEGRAM-BOT-TOKEN]@telegram?chats=[REDACTED-CHAT-ID]\n      - WATCHTOWER_CLEANUP=true\n      - WATCHTOWER_INCLUDE_RESTARTING=true\n      - WATCHTOWER_INCLUDE_STOPPED=true\n      - WATCHTOWER_SCHEDULE= 0 0 04 ? * FRI #At 04:00 AM, only on Friday\n    restart: unless-stopped\n    pull_policy: always\n```\n\n```bash\ndocker compose -f /home/apps/watchtower/docker-compose.yaml up -d\n```\n\n---\nRun once\n```yaml\n##      - WATCHTOWER_SCHEDULE= 0 0 04 ? * FRI #At 04:00 AM, only on Friday\n      - WATCHTOWER_RUN_ONCE=true\n```\n\n---\n>[[00 Homelab|home]]"
+    "markdown": "## Mediaserver\n- [[Torrent|Torrent]] - qBitTorrent Setup\n- [[NZB|NZB]] - SABnzb Setup\n\n---\n### Docker Compose\n\n```bash\ndocker network create mediastack\nsudo mkdir -p /media/wd2001ext4/apps/mediaserver/{plex-config,tautulli-config,plex-logs,radarr-config,sonarr-config,prowlarr-config,bazarr-config,qbittorrent-config,sabnzbd-config}\n```\n\n```bash\nsudo nano /media/wd2001ext4/apps/mediaserver/docker-compose.yaml\n```\n\n```yaml\nname: media-stack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\n  ## Default credentials of qBittorrent - Username: admin password: adminadmin ##\n  ## Change password after install from UI --> Tools --> Options --> WebUI ##\n  qbittorrent:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    # image: lscr.io/linuxserver/qbittorrent:4.5.4 older version\n    container_name: qbittorrent\n    # Unomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # Comment below lines if VPN is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    # Unomment below line if vpn is enabled\n    # network_mode: service:vpn\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - WEBUI_PORT=5080\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/qbittorrent-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ## Comment/Disable below ports if VPN is enabled\n    ports:\n      - 5080:5080\n      - 6881:6881\n      - 6881:6881/udp\n    restart: unless-stopped\n    pull_policy: always\n\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    # image: lscr.io/linuxserver/radarr:4.7.5 older version\n    container_name: radarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    ports:\n      - 7878:7878\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/radarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    restart: unless-stopped\n    pull_policy: always\n\n  sonarr:\n    image: linuxserver/sonarr:latest #using v4 instead of v3\n##    image: linuxserver/sonarr:4.0.0-develop\n    container_name: sonarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sonarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ports:\n      - 8989:8989\n    restart: unless-stopped\n    pull_policy: always\n\n  prowlarr:\n    image: linuxserver/prowlarr:latest\n    container_name: prowlarr\n    # Uncomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # network_mode: service:vpn # Uncomment this line if vpn is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/prowlarr-config:/config\n    # Comment below ports if VPN is enabled.\n    ports:\n      - 9696:9696\n    restart: unless-stopped\n    pull_policy: always\n\n## Subtitel Manager and Downloader\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: bazarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/bazarr-config:/config\n      - /media/wd2001ext4/media/downloads/movies:/movies\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n    ports:\n      - 6767:6767\n    restart: unless-stopped\n    pull_policy: always\n\n## NZB Provider\n  sabnzbd:\n    image: lscr.io/linuxserver/sabnzbd:latest\n    container_name: sabnzbd\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sabnzbd-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n      - /media/wd2001ext4/media/incomplete-downloads:/incomplete-downloads\n    ports:\n      - 8070:8080\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n  radarr-config:\n  sonarr-config:\n  prowlarr-config:\n  bazarr-config:\n  qbittorrent-config:\n  sabnzbd-config:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /media/wd2001ext4/apps/mediaserver/docker-compose.yaml up -d\n```\n\n---\n#### Optiplex\n```bash\ndocker network create mediastack\n```\n\n```bash\nsudo mkdir /mediaserver\nsudo nano /mediaserver/docker-compose.yaml\n```\n\nalso included is [[Overseerr]]\n\n```yaml\nname: mediastack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /mnt/media/wd2001ext4/media/downloads/tvshows:/tv\n      - /mnt/media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /mediaserver/docker-compose.yaml up -d\n```\n---\n##### Unused:\n\n```yaml\n  # To use/enable VPN, Run this compose file with --profile=vpn. Its highly recommended to use VPN.\n  vpn:\n  ## Read https://github.com/qdm12/gluetun/wiki for details on configuring VPN for different service providers.\n    profiles: [\"vpn\"]\n    container_name: vpn\n    image: qmcgaw/gluetun:v3.35.0\n    cap_add:\n      - NET_ADMIN\n    environment:\n      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-nordvpn} # Valid values: nordvpn, expressvpn, protonvpn, surfshark or custom\n      - OPENVPN_USER=[REDACTED]\n      - OPENVPN_PASSWORD=[REDACTED]\n\n      ## For list of server countries, visit https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json\n\n      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-Latvia}\n    \n      # - FREE_ONLY=on  # Valid with protonvpn only. Value willbe set \"on\" if using free subscription provided by protonvpn\n\n      ## Enable below if VPN_SERVICE_PROVIDER=custom\n      # - VPN_TYPE=openvpn # or wireguard. \n\n      ## If VPN_TYPE is openvpn\n      # - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf\n\n      ## If VPN_TYPE is wireguard. Replace below env variables as required.\n      # - VPN_ENDPOINT_IP=1.2.3.4                                               # Replace with your wg endpoint ip or domain\n      # - VPN_ENDPOINT_PORT=51820                                               # Replace with wg server port\n      # - WIREGUARD_PUBLIC_KEY=[REDACTED]     # Replace with your wg public key\n      # - WIREGUARD_PRIVATE_KEY=[REDACTED]    # Replace with your wg client private key\n      # - WIREGUARD_PRESHARED_KEY=[REDACTED]  # Replaced with your wg pre-shared key\n      # - WIREGUARD_ADDRESSES=\"10.64.222.21/32\"                                 # Replace with wg address\n\n    ## Enable volume if VPN_SERVICE_PROVIDER=custom and VPN_TYPE=openvpn is used\n    # volumes:\n      # - /yourpath/yourconfig.conf:/gluetun/config.conf:ro\n\n    networks:\n      - mediastack\n    \n    # Uncomment/enable below ports if VPN is used/enabled\n    # ports:\n    #   # qbittorrent ports\n    #   - 5080:5080\n    #   - 6881:6881\n    #   - 6881:6881/udp\n    #   # prowlarr ports\n    #   - 9696:9696\n    restart: \"unless-stopped\"\n\n  jellyfin:\n    image: linuxserver/jellyfin:latest\n    container_name: jellyfin\n    # image: linuxserver/jellyfin:10.8.10 - old image\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/jellyfin-config:/config\n      - /media/wd2001ext4/media/downloads:/data\n  # devices:\n  #  - /dev/videoN:/dev/videoN # Mount GPU device \n    ports:\n      - 8096:8096\n      - 7359:7359/udp\n      - 8920:8920\n    restart: unless-stopped\n\n## Jellyfin stats\n  embystat:\n    image: lscr.io/linuxserver/embystat:latest\n    container_name: embystat\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/embystat-config:/config\n    ports:\n      - 6555:6555\n    restart: unless-stopped\n\n  cleanmyarr:\n    depends_on:\n      - radarr\n      - sonarr\n    image: linuxshots/cleanmyarr:0.4.1-beta\n    container_name: cleanmyarr\n    networks:\n      - mediastack\n      - proxy\n    volumes:\n      - cleanmyarr-config:/config\n    restart: unless-stopped\n  \nvolumes:\n  jellyfin-config:\n  embystat-config:\n  sabnzbd-config:\n  cleanmyarr-config:\n```\n\n---\n### Configuration\n\n#### Configure Plex\n\n- Open Plex at http://192.168.0.195:32400/web\n- Configure as it asks for the first time adding /tvshows and /movies\n\n#### Configure Tautulli\n\n- Open Tautulli at http://192.168.0.195:8181\n\n#### Configure Jellyfin\n\n- Open Jellyfin at http://192.168.0.195:8096\n- Configure as it asks for first time.\n- Add media library folder and choose /data/movies/\n\n#### Configure EmbyStat\n\n- Open EmbyStat at http://192.168.0.195:6555\n- Configure as it asks for first time.\n- Server: at 172.25.0.4 URL: https://jellyfin.jalubru.duckdns.org\n- API: [Jellyfin API](https://jellyfin.jalubru.duckdns.org/web/index.html#!/apikeys.html)\n\n#### Configure Radarr\n\n- Open Radarr at http://192.168.0.195:7878\n- Settings --> Media Management --> Check mark \"Movies deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a movie** (After Prowlarr is configured)\n\n- Movies --> Search for a movie --> Add Root folder (/downloads) --> Quality profile --> Add movie\n- Go to qBittorrent (http://192.168.0.195:5080) and see if movie is getting downloaded.\n\n#### Configure Sonarr\n\n- Open Sonarr at http://192.168.0.195:8989\n- Settings --> Media Management --> Check mark \"Shows deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a show** (After Prowlarr is configured)\n\n- Shows --> Search for a show --> Add Root folder (/downloads) --> Quality profile --> Add show\n- Go to qBittorrent (http://192.168.0.195:5080) and see if show is getting downloaded.\n\n#### Configure Prowlarr\n\n- Open Prowlarr at http://192.168.0.195:9696\n- Settings --> General --> Authentications --> Select Authentication and add username and password\n- Add Indexers, Indexers --> Add Indexer --> Search for indexer --> Choose base URL --> Test and Save\n- Add application, Settings --> Apps --> Add application --> Choose Sonarr or Radarr or any apps to link --> Prowlarr server (http://192.168.0.195:9696) --> Radarr (http://192.168.0.195:7878) or Sonarr (http://192.168.0.195:8989)--> API Key --> Test and Save\n- This will add indexers in respective apps automatically.\n\n#### Configure Bazarr\nhttps://wiki.bazarr.media\n\n- Open Bazarr at http://192.168.0.195:6767\n- Go to Settings -->Sonarr or Radarr --> Address: 192.168.0.195, \n- Create Account at https://www.opensubtitles.org, https://www.opensubtitles.com, \n\n---\n### Nginx Configuration\n\n- Get inside Nginx container\n- `cd /etc/nginx/conf.d`\n- Add proxies for all tools.\n\n`docker cp nginx.conf nginx:/etc/nginx/conf.d/default.conf && docker exec -it nginx nginx -s reload`\n- Close ports of other tools in firewall/security groups except port 80 and 443.\n\n#### Apply SSL in Nginx\n\n- Open port 80 and 443.\n- Get inside Nginx container and install certbot and certbot-nginx `apk add certbot certbot-nginx`\n- Add URL in server block. e.g. `server_name  localhost armdev.navratangupta.in;` in /etc/nginx/conf.d/default.conf\n- Run `certbot --nginx` and provide details asked.\n\n#### Jellyfin Nginx proxy\n\n- Add base URL, Admin Dashboard -> Networking -> Base URL (/jellyfin)\n- Add below config in Ngix config\n\n```\n location /jellyfin {\n        return 302 $scheme://$host/jellyfin/;\n    }\n\n    location /jellyfin/ {\n\n        proxy_pass http://jellyfin:8096/jellyfin/;\n\n        proxy_pass_request_headers on;\n\n        proxy_set_header Host $host;\n\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Forwarded-Host $http_host;\n\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection $http_connection;\n\n        # Disable buffering when the nginx proxy gets very resource heavy upon streaming\n        proxy_buffering off;\n    }\n```\n\n- Restart containers\n\n#### Radarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/radarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://radarr:7878;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n#### Sonarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/sonarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://sonarr:8989;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n#### Prowlarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/prowlarr)\n- Add below proxy in nginx configuration\n\nThis may need to change configurations in indexers and base in URL.\n\n```\nlocation /prowlarr {\n    proxy_pass http://prowlarr:9696; # Comment this line if VPN is enabled.\n    # proxy_pass http://vpn:9696; # Uncomment this line if VPN is enabled.\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n**Note: If VPN is enabled, then Prowlarr is reachable on vpn's service name**\n\n---\n>[[00 Homelab|home]]"
   },
-  "watchtower-serverpi": {
-    "serviceId": "watchtower-serverpi",
-    "sourceFile": "Watchtower.md",
-    "title": "Watchtower",
+  "nginxproxymanager": {
+    "serviceId": "nginxproxymanager",
+    "sourceFile": "Nginx Proxy Manager.md",
+    "title": "Nginx Proxy Manager",
     "frontmatter": {
       "tags": [
         "Homelab/Apps"
       ],
       "aliases": [
-        "Watchtower"
+        "Nginx Proxy Manager",
+        "nginx"
       ],
-      "ITname": "Watchtower",
-      "ITcategory": "Network Monitoring",
-      "ITmachine": [
-        "OptiPi",
-        "Raspberry Pi"
-      ],
-      "ITinstalltype": "docker",
-      "ITstatus": [
-        "installed"
-      ]
-    },
-    "summary": "Watchtower [Container.dev/Watchtower](https://containrrr.dev/watchtower/) [Text - Watchtower Telegram Notifications](https://github.com/Pyenb/Watchtower-telegram-notifications)",
-    "links": [
-      {
-        "label": "Container.dev/Watchtower",
-        "url": "https://containrrr.dev/watchtower/"
-      },
-      {
-        "label": "Text - Watchtower Telegram Notifications",
-        "url": "https://github.com/Pyenb/Watchtower-telegram-notifications"
-      }
-    ],
-    "codeBlocks": [
-      {
-        "language": "bash",
-        "code": "sudo mkdir /home/apps/watchtower"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /home/apps/watchtower/docker-compose.yaml"
-      },
-      {
-        "language": "yaml",
-        "code": "services:\n  watchtower:\n    image: containrrr/watchtower\n    container_name: watchtower\n    hostname: opti/raspi\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n    environment:\n      - TZ=Europe/Riga\n      - WATCHTOWER_NOTIFICATIONS=shoutrrr\n      - WATCHTOWER_NOTIFICATION_URL=telegram://[REDACTED-TELEGRAM-BOT-TOKEN]@telegram?chats=[REDACTED-CHAT-ID]\n      - WATCHTOWER_CLEANUP=true\n      - WATCHTOWER_INCLUDE_RESTARTING=true\n      - WATCHTOWER_INCLUDE_STOPPED=true\n      - WATCHTOWER_SCHEDULE= 0 0 04 ? * FRI #At 04:00 AM, only on Friday\n    restart: unless-stopped\n    pull_policy: always"
-      },
-      {
-        "language": "bash",
-        "code": "docker compose -f /home/apps/watchtower/docker-compose.yaml up -d"
-      },
-      {
-        "language": "yaml",
-        "code": "##      - WATCHTOWER_SCHEDULE= 0 0 04 ? * FRI #At 04:00 AM, only on Friday\n      - WATCHTOWER_RUN_ONCE=true"
-      }
-    ],
-    "markdown": "## Watchtower\n\n---\n[Container.dev/Watchtower](https://containrrr.dev/watchtower/)\n[Text - Watchtower Telegram Notifications](https://github.com/Pyenb/Watchtower-telegram-notifications)\n\n---\n\n### Docker-Compose\n\n```bash\nsudo mkdir /home/apps/watchtower\n```\n\n```bash\nsudo nano /home/apps/watchtower/docker-compose.yaml\n```\n\n```yaml\nservices:\n  watchtower:\n    image: containrrr/watchtower\n    container_name: watchtower\n    hostname: opti/raspi\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n    environment:\n      - TZ=Europe/Riga\n      - WATCHTOWER_NOTIFICATIONS=shoutrrr\n      - WATCHTOWER_NOTIFICATION_URL=telegram://[REDACTED-TELEGRAM-BOT-TOKEN]@telegram?chats=[REDACTED-CHAT-ID]\n      - WATCHTOWER_CLEANUP=true\n      - WATCHTOWER_INCLUDE_RESTARTING=true\n      - WATCHTOWER_INCLUDE_STOPPED=true\n      - WATCHTOWER_SCHEDULE= 0 0 04 ? * FRI #At 04:00 AM, only on Friday\n    restart: unless-stopped\n    pull_policy: always\n```\n\n```bash\ndocker compose -f /home/apps/watchtower/docker-compose.yaml up -d\n```\n\n---\nRun once\n```yaml\n##      - WATCHTOWER_SCHEDULE= 0 0 04 ? * FRI #At 04:00 AM, only on Friday\n      - WATCHTOWER_RUN_ONCE=true\n```\n\n---\n>[[00 Homelab|home]]"
-  },
-  "teleport": {
-    "serviceId": "teleport",
-    "sourceFile": "Teleport.md",
-    "title": "Teleport",
-    "frontmatter": {
-      "tags": [
-        "Homelab/Apps"
-      ],
-      "aliases": [
-        "Teleport"
-      ],
-      "ITname": "Teleport",
+      "ITname": "Nginx Proxy Manager",
       "ITcategory": "Reverse Proxy",
       "ITmachine": [
-        "OptiPi"
-      ],
-      "ITinstalltype": "docker",
-      "ITstatus": [
-        "todo"
-      ],
-      "priority": [
-        "3"
-      ]
-    },
-    "summary": "Teleport [Traefik + Teleport - Christian Lempa - YouTube](https://www.youtube.com/watch?v=NzSdNoR-JPo) Connected with Traefik",
-    "links": [
-      {
-        "label": "Traefik + Teleport - Christian Lempa - YouTube",
-        "url": "https://www.youtube.com/watch?v=NzSdNoR-JPo"
-      }
-    ],
-    "codeBlocks": [
-      {
-        "language": "bash",
-        "code": "sudo mkdir -p /home/apps/teleport/{config,data}"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /home/apps/teleport/docker-compose.yaml"
-      },
-      {
-        "language": "yaml",
-        "code": "---\n# -- (Optional) When using Traefik, use this section\nnetworks:\n  proxy:\n    external: true\nservices:\n  teleport:\n    image: public.ecr.aws/gravitational/teleport-distroless:16.0.1\n    container_name: teleport\n    # ports:\n      # -- (Optional) Remove this section, when using Traefik\n      # - \"3080:3080\"\n      # - \"3023:3023\"\n      # - \"3024:3024\"\n      # - \"3025:3025\"\n    volumes:\n      - /home/apps/teleport/config:/etc/teleport\n      - /home/apps/teleport/data:/var/lib/teleport\n    # -- (Optional) Traefik example configuration\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.teleport.rule=Host(`teleport.local.jalubru.com`) || HostRegexp(`{subhost:[a-z]+}.teleport.local.jalubru.com`)\"\n      - \"traefik.http.routers.teleport.entrypoints=https\"\n      - \"traefik.http.routers.teleport.tls=true\"\n      - \"traefik.http.services.teleport.loadbalancer.server.port=3080\"\n    networks:\n      - proxy\n    restart: unless-stopped"
-      },
-      {
-        "language": "yaml",
-        "code": "---\n# -- (Optional) When using Traefik, use this section\nnetworks:\n  proxy:\n    external: true\nservices:\n  teleport:\n    image: public.ecr.aws/gravitational/teleport-distroless:16.0.1\n    container_name: teleport\n    ports:\n      # -- (Optional) Remove this section, when using Traefik\n      # - \"3080:3080\"\n      # - \"3023:3023\"\n      # - \"3024:3024\"\n      # - \"3025:3025\"\n    volumes:\n      - /home/apps/teleport/config:/etc/teleport\n      - /home/apps/teleport/data:/var/lib/teleport\n    # -- (Optional) Traefik example configuration\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.services.teleport.loadbalancer.server.port=3080\"\n      - \"traefik.http.services.teleport.loadbalancer.server.scheme=https\"\n      - \"traefik.http.routers.teleport-http.entrypoints=http\"\n      - \"traefik.http.routers.teleport-http.rule=Host(`teleport.local.jalubru.com`) || HostRegexp(`{subhost:[a-z]+}.teleport.local.jalubru.com`)\"\n      - \"traefik.http.routers.teleport-https.entrypoints=https\"\n      - \"traefik.http.routers.teleport-https.rule=Host(`teleport.local.jalubru.com`) || HostRegexp(`{subhost:[a-z]+}.teleport.local.jalubru.com`)\"\n      - \"traefik.http.routers.teleport-https.tls=true\"\n      - \"traefik.http.routers.teleport-https.tls.certresolver=cloudflare\"\n      - \"traefik.http.routers.teleport-https.tls.domains[0].main=teleport.local.jalubru.com\"\n      - \"traefik.http.routers.teleport-https.tls.domains[0].sans=*.teleport.local.jalubru.com\"\n    networks:\n      - proxy\n    restart: unless-stopped"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /home/apps/teleport/config/teleport.yaml"
-      },
-      {
-        "language": "yaml",
-        "code": "version: v2\nteleport:\n  nodename: optiport\n  data_dir: /var/lib/teleport\n  log:\n    output: stderr\n    severity: INFO\n    format:\n      output: text\n\nauth_service:\n  enabled: \"yes\"\n  listen_addr: 0.0.0.0:3025\n  proxy_listener_mode: multiplex\n  cluster_name: teleport.local.jalubru.com\n  # -- (Optional) Passwordless Authentication\n  # authentication:\n  #   type: local\n  #   second_factor: on\n  #   webauthn:\n  #     rp_id: your-server-url\n  #   connector_name: passwordless\n  # -- (Optional) Teleport Assist\n  # assist:\n  #   openai:\n  #     api_token_path: /etc/teleport/openai_key\n\nssh_service:\n  enabled: \"no\"\n\nproxy_service:\n  enabled: \"yes\"\n  web_listen_addr: 0.0.0.0:3080\n  # -- (Optional) when using reverse proxy\n  public_addr: ['teleport.local.jalubru.com:443']\n  https_keypairs: []\n  acme: {}\n  # --(Optional) ACME\n  # acme:\n  #   enabled: \"yes\"\n  #   email: your-email-address\n  # -- (Optional) Teleport Assist\n  # assist:\n  #   openai:\n  #     api_token_path: /etc/teleport/openai_key\n\napp_service:\n  enabled: yes\n  # -- (Optional) App Service\n  # enabled: yes\n  apps:\n    - name: \"proxmox\"\n      uri: \"https://proxmox.local.jalubru.com\"\n      insecure_skip_verify: false"
-      },
-      {
-        "language": "bash",
-        "code": "sudo docker compose -f /home/apps/teleport/docker-compose.yaml up -d"
-      },
-      {
-        "language": "bash",
-        "code": "cd /home/apps/teleport"
-      },
-      {
-        "language": "bash",
-        "code": "sudo docker compose exec teleport tctl users add jalubru --roles=editor"
-      }
-    ],
-    "markdown": "## Teleport\n\n---\n[Traefik + Teleport - Christian Lempa - YouTube](https://www.youtube.com/watch?v=NzSdNoR-JPo)\n\n---\nConnected with [[Traefik]]\n## Docker-Compose\n```bash\nsudo mkdir -p /home/apps/teleport/{config,data}\n```\n\n```bash\nsudo nano /home/apps/teleport/docker-compose.yaml\n```\n\n```yaml\n---\n# -- (Optional) When using Traefik, use this section\nnetworks:\n  proxy:\n    external: true\nservices:\n  teleport:\n    image: public.ecr.aws/gravitational/teleport-distroless:16.0.1\n    container_name: teleport\n    # ports:\n      # -- (Optional) Remove this section, when using Traefik\n      # - \"3080:3080\"\n      # - \"3023:3023\"\n      # - \"3024:3024\"\n      # - \"3025:3025\"\n    volumes:\n      - /home/apps/teleport/config:/etc/teleport\n      - /home/apps/teleport/data:/var/lib/teleport\n    # -- (Optional) Traefik example configuration\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.teleport.rule=Host(`teleport.local.jalubru.com`) || HostRegexp(`{subhost:[a-z]+}.teleport.local.jalubru.com`)\"\n      - \"traefik.http.routers.teleport.entrypoints=https\"\n      - \"traefik.http.routers.teleport.tls=true\"\n      - \"traefik.http.services.teleport.loadbalancer.server.port=3080\"\n    networks:\n      - proxy\n    restart: unless-stopped\n```\n\nChristian Lempa:\n```yaml\n---\n# -- (Optional) When using Traefik, use this section\nnetworks:\n  proxy:\n    external: true\nservices:\n  teleport:\n    image: public.ecr.aws/gravitational/teleport-distroless:16.0.1\n    container_name: teleport\n    ports:\n      # -- (Optional) Remove this section, when using Traefik\n      # - \"3080:3080\"\n      # - \"3023:3023\"\n      # - \"3024:3024\"\n      # - \"3025:3025\"\n    volumes:\n      - /home/apps/teleport/config:/etc/teleport\n      - /home/apps/teleport/data:/var/lib/teleport\n    # -- (Optional) Traefik example configuration\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.services.teleport.loadbalancer.server.port=3080\"\n      - \"traefik.http.services.teleport.loadbalancer.server.scheme=https\"\n      - \"traefik.http.routers.teleport-http.entrypoints=http\"\n      - \"traefik.http.routers.teleport-http.rule=Host(`teleport.local.jalubru.com`) || HostRegexp(`{subhost:[a-z]+}.teleport.local.jalubru.com`)\"\n      - \"traefik.http.routers.teleport-https.entrypoints=https\"\n      - \"traefik.http.routers.teleport-https.rule=Host(`teleport.local.jalubru.com`) || HostRegexp(`{subhost:[a-z]+}.teleport.local.jalubru.com`)\"\n      - \"traefik.http.routers.teleport-https.tls=true\"\n      - \"traefik.http.routers.teleport-https.tls.certresolver=cloudflare\"\n      - \"traefik.http.routers.teleport-https.tls.domains[0].main=teleport.local.jalubru.com\"\n      - \"traefik.http.routers.teleport-https.tls.domains[0].sans=*.teleport.local.jalubru.com\"\n    networks:\n      - proxy\n    restart: unless-stopped\n```\n\n```bash\nsudo nano /home/apps/teleport/config/teleport.yaml\n```\n\n```yaml\nversion: v2\nteleport:\n  nodename: optiport\n  data_dir: /var/lib/teleport\n  log:\n    output: stderr\n    severity: INFO\n    format:\n      output: text\n\nauth_service:\n  enabled: \"yes\"\n  listen_addr: 0.0.0.0:3025\n  proxy_listener_mode: multiplex\n  cluster_name: teleport.local.jalubru.com\n  # -- (Optional) Passwordless Authentication\n  # authentication:\n  #   type: local\n  #   second_factor: on\n  #   webauthn:\n  #     rp_id: your-server-url\n  #   connector_name: passwordless\n  # -- (Optional) Teleport Assist\n  # assist:\n  #   openai:\n  #     api_token_path: /etc/teleport/openai_key\n\nssh_service:\n  enabled: \"no\"\n\nproxy_service:\n  enabled: \"yes\"\n  web_listen_addr: 0.0.0.0:3080\n  # -- (Optional) when using reverse proxy\n  public_addr: ['teleport.local.jalubru.com:443']\n  https_keypairs: []\n  acme: {}\n  # --(Optional) ACME\n  # acme:\n  #   enabled: \"yes\"\n  #   email: your-email-address\n  # -- (Optional) Teleport Assist\n  # assist:\n  #   openai:\n  #     api_token_path: /etc/teleport/openai_key\n\napp_service:\n  enabled: yes\n  # -- (Optional) App Service\n  # enabled: yes\n  apps:\n    - name: \"proxmox\"\n      uri: \"https://proxmox.local.jalubru.com\"\n      insecure_skip_verify: false\n```\n\n```bash\nsudo docker compose -f /home/apps/teleport/docker-compose.yaml up -d\n```\n\n```bash\ncd /home/apps/teleport\n```\n\n```bash\nsudo docker compose exec teleport tctl users add jalubru --roles=editor\n```\n\n---\n>[[00 Homelab|home]]"
-  },
-  "traefik": {
-    "serviceId": "traefik",
-    "sourceFile": "Traefik.md",
-    "title": "Traefik",
-    "frontmatter": {
-      "tags": [
-        "Homelab/Apps"
-      ],
-      "aliases": [
-        "Traefik"
-      ],
-      "ITname": "Traefik",
-      "ITcategory": "Reverse Proxy",
-      "ITmachine": [
-        "OptiPi"
-      ],
-      "ITinstalltype": "docker",
-      "ITstatus": [
-        "installed"
-      ],
-      "priority": [
-        "3"
-      ]
-    },
-    "summary": "Traefik see also Teleport, Tailscale [Reddit - Traefik with multiple lxcs](https://www.reddit.com/r/Traefik/s/sUgxpqsvhe)",
-    "links": [
-      {
-        "label": "Reddit - Traefik with multiple lxcs",
-        "url": "https://www.reddit.com/r/Traefik/s/sUgxpqsvhe"
-      },
-      {
-        "label": "Traefik 3 and FREE Wildcard Certificates with Docker | Techno Tim",
-        "url": "https://technotim.live/posts/traefik-3-docker-certificates/"
-      },
-      {
-        "label": "Traefik 3 and FREE Wildcard Certificates with Docker - YouTube",
-        "url": "https://www.youtube.com/watch?v=n1vOfdz5Nm8"
-      },
-      {
-        "label": "Traefik + Docker - Christian Lempa - YouTube",
-        "url": "https://www.youtube.com/watch?v=NzSdNoR-JPo"
-      },
-      {
-        "label": "Is this the BEST Reverse Proxy for Docker? // Traefik Tutorial - YouTube",
-        "url": "https://www.youtube.com/watch?v=wLrmmh1eI94"
-      },
-      {
-        "label": "boilerplates/docker-compose/traefik at main · ChristianLempa/boilerplates · GitHub",
-        "url": "https://github.com/ChristianLempa/boilerplates/tree/main/docker-compose/traefik"
-      },
-      {
-        "label": "Put Wildcard Certificates and SSL on EVERYTHING - Traefik + Portainer Tutorial - YouTube",
-        "url": "https://www.youtube.com/watch?v=liV3c9m_OX8"
-      },
-      {
-        "label": "Put Wildcard Certificates and SSL on EVERYTHING | Techno Tim",
-        "url": "https://technotim.live/posts/traefik-portainer-ssl/"
-      },
-      {
-        "label": "techno-tim.github.io/reference\\_files/traefik-portainer-ssl/traefik at master · techno-tim/techno-tim.github.io · GitHub",
-        "url": "https://github.com/techno-tim/techno-tim.github.io/tree/master/reference_files/traefik-portainer-ssl/traefik"
-      },
-      {
-        "label": "Cloudflare API Tokens",
-        "url": "https://dash.cloudflare.com/profile/api-tokens"
-      },
-      {
-        "label": "acme-v02.api.letsencrypt.org/directory",
-        "url": "https://acme-v02.api.letsencrypt.org/directory"
-      },
-      {
-        "label": "acme-staging-v02.api.letsencrypt.org/directory",
-        "url": "https://acme-staging-v02.api.letsencrypt.org/directory"
-      }
-    ],
-    "codeBlocks": [
-      {
-        "language": "yaml",
-        "code": "labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.APP.rule=Host(`APP.local.jalubru.com`)\"\n      - \"traefik.http.routers.APP.entrypoints=https\"\n      - \"traefik.http.routers.APP.tls=true\"\n      - \"traefik.http.services.APP.loadbalancer.server.port=PORT\""
-      },
-      {
-        "language": "yaml",
-        "code": "networks:\n      proxy:\n        external: true"
-      },
-      {
-        "language": "bash",
-        "code": "sudo mkdir -p /home/apps/traefik/data/"
-      },
-      {
-        "language": "bash",
-        "code": "sudo touch /home/apps/traefik/{cf_api_token.txt,docker-compose.yaml} && sudo touch /home/apps/traefik/data/{acme.json,config.yml,traefik.yml} && sudo chmod 600 /home/apps/traefik/data/acme.json"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /home/apps/traefik/data/traefik.yml"
-      },
-      {
-        "language": "yaml",
-        "code": "api:\n  dashboard: true\n  debug: true\nentryPoints:\n  http:\n    address: \":80\"\n    http:\n      redirections:\n        entryPoint:\n          to: https\n          scheme: https\n  https:\n    address: \":443\"\nserversTransport:\n  insecureSkipVerify: true\nproviders:\n  docker:\n    endpoint: \"unix:///var/run/docker.sock\"\n    exposedByDefault: false\n  file:\n    filename: /config.yml\ncertificatesResolvers:\n  cloudflare:\n    acme:\n      email: jalu@bruderek.de\n      storage: acme.json\n      # caServer: https://acme-v02.api.letsencrypt.org/directory # prod (default)\n      caServer: https://acme-staging-v02.api.letsencrypt.org/directory # staging\n      dnsChallenge:\n        provider: cloudflare\n        #disablePropagationCheck: true # uncomment this if you have issues pulling certificates through cloudflare, By setting this flag to true disables the need to wait for the propagation of the TXT record to all authoritative name servers.\n        #delayBeforeCheck: 60s # uncomment along with disablePropagationCheck if needed to ensure the TXT record is ready before verification is attempted \n        resolvers:\n          - \"1.1.1.1:53\"\n          - \"1.0.0.1:53\""
-      },
-      {
-        "language": "bash",
-        "code": "sudo docker network create proxy"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /home/apps/traefik/docker-compose.yaml"
-      },
-      {
-        "language": "yaml",
-        "code": "services:\n  traefik:\n    image: traefik:latest\n    container_name: traefik\n    restart: unless-stopped\n    security_opt:\n      - no-new-privileges:true\n    networks:\n      - proxy\n    ports:\n      - 80:80\n      - 443:443\n      # - 443:443/tcp # Uncomment if you want HTTP3\n      # - 443:443/udp # Uncomment if you want HTTP3\n    environment:\n##      CF_DNS_API_TOKEN_FILE: /run/secrets/cf_api_token # note using _FILE for docker secrets\n      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN} # if using .env\n      TRAEFIK_DASHBOARD_CREDENTIALS: ${TRAEFIK_DASHBOARD_CREDENTIALS}\n    secrets:\n      - cf_api_token\n    env_file: .env # use .env\n    volumes:\n      - /etc/localtime:/etc/localtime:ro\n      - /var/run/docker.sock:/var/run/docker.sock:ro\n      - /home/apps/traefik/data/traefik.yml:/traefik.yml:ro\n      - /home/apps/traefik/data/acme.json:/acme.json\n##      - /home/apps/traefik/data/config.yml:/config.yml:ro\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.traefik.entrypoints=http\"\n      - \"traefik.http.routers.traefik.rule=Host(`traefik.local.jalubru.com`)\"\n      - \"traefik.http.middlewares.traefik-auth.basicauth.users=[REDACTED]\"\n      - \"traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https\"\n      - \"traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https\"\n      - \"traefik.http.routers.traefik.middlewares=traefik-https-redirect\"\n      - \"traefik.http.routers.traefik-secure.entrypoints=https\"\n      - \"traefik.http.routers.traefik-secure.rule=Host(`traefik.local.jalubru.com`)\"\n      - \"traefik.http.routers.traefik-secure.middlewares=traefik-auth\"\n      - \"traefik.http.routers.traefik-secure.tls=true\"\n      - \"traefik.http.routers.traefik-secure.tls.certresolver=cloudflare\"\n      - \"traefik.http.routers.traefik-secure.tls.domains[0].main=local.jalubru.com\"\n      - \"traefik.http.routers.traefik-secure.tls.domains[0].sans=*.local.jalubru.com\"\n      - \"traefik.http.routers.traefik-secure.service=api@internal\"\n\nsecrets:\n  cf_api_token:\n    file: /home/apps/traefik/data/cloudflare.env\n\nnetworks:\n  proxy:\n    external: true"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /home/apps/traefik/cf_api_token.txt"
-      },
-      {
-        "language": "bash",
-        "code": "echo \"CLOUDFLARE_DNS_API_TOKEN=\" | sudo tee /home/apps/traefik/data/cloudflare.env > /dev/null"
-      },
-      {
-        "language": "bash",
-        "code": "sudo apt update\nsudo apt install apache2-utils"
-      },
-      {
-        "language": "bash",
-        "code": "echo $(htpasswd -nB admin) | sed -e s/\\\\$/\\\\$\\\\$/g"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /home/apps/traefik/.env"
-      },
-      {
-        "language": "bash",
-        "code": "TRAEFIK_DASHBOARD_CREDENTIALS="
-      },
-      {
-        "language": "bash",
-        "code": "sudo docker compose -f /home/apps/traefik/docker-compose.yaml up -d"
-      },
-      {
-        "language": "bash",
-        "code": "sudo docker compose -f /home/apps/traefik/docker-compose.yaml up -d --force-recreate"
-      },
-      {
-        "language": "Bash",
-        "code": "sudo nano /home/apps/traefik/data/config.yml"
-      },
-      {
-        "language": "yaml",
-        "code": "http:\n #region routers \n  routers:\n    proxmox:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`proxmox.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: proxmox\n    pihole:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`pihole.local.jalubru.com`)\"\n      middlewares:\n        #- redirectregex-pihole\n        - default-headers\n        #- addprefix-pihole\n        - https-redirectscheme\n      tls: {}\n      service: pihole\n    portainer:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`portainer.local.jalubru.com`)\"\n      tls: true\n      service: portainer\n#endregion\n#region services\n  services:\n    proxmox:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.192:8006\"\n        passHostHeader: true\n    pihole:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.190:80\"\n        passHostHeader: true\n    portainer:\n      loadBalancer:\n        servers:\n          - url: \"http://portainer:9000\"\n#endregion\n  middlewares:\n    addprefix-pihole:\n      addPrefix:\n        prefix: \"/admin\"\n    https-redirectscheme:\n      redirectScheme:\n        scheme: https\n        permanent: true\n    redirectregex-pihole:\n      redirectRegex:\n        regex: \"/admin/(.*)\"\n        replacement: /\n    default-headers:\n      headers:\n        frameDeny: true\n        browserXssFilter: true\n        contentTypeNosniff: true\n        forceSTSHeader: true\n        stsIncludeSubdomains: true\n        stsPreload: true\n        stsSeconds: 15552000\n        customFrameOptionsValue: SAMEORIGIN\n        customRequestHeaders:\n          X-Forwarded-Proto: https\n\n    default-whitelist:\n      ipAllowList:\n        sourceRange:\n        - \"10.0.0.0/8\"\n        - \"192.168.0.0/16\"\n        - \"172.16.0.0/12\"\n\n    secured:\n      chain:\n        middlewares:\n        - default-whitelist\n        - default-headers"
-      },
-      {
-        "language": "yaml",
-        "code": "http:\n #region routers\n  routers:\n    proxmox:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`proxmox.local.example.com`)\" \n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: proxmox\n    pihole:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`pihole.local.example.com`)\"\n      middlewares:\n        - redirectregex-pihole\n        - default-headers\n        - addprefix-pihole\n        - https-redirectscheme\n      tls: {}\n      service: pihole\n    homebridge:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`homebridge.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: homebridge\n    homeassistant:\n      # For Homeassistant config, check: https://www.home-assistant.io/integrations/http/#reverse-proxies\n      # This relies on Homeassistant using http. No certs are needed in the Homeassistant config.\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`homeassistant.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: homeassistant\n    syncthing:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`syncthing.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: syncthing\n    truenas:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`truenas.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: truenas\n    plex:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`plex.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: plex\n    minio:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`minio.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: minio\n    rancher:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`rancher.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: rancher\n    idrac:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`idrac.local.example.com`)\"\n      middlewares:\n        - idrac\n        - https-redirectscheme\n      tls: {}\n      service: idrac\n    idrac-console:\n      entryPoints:\n        - \"idrac\" # REQUIRED for iDRAC virtual console: Create a new TCP entry point in traefik on port 5900\n      rule: \"Host(`idrac.local.example.com`)\"\n      middlewares:\n        - idrac\n        - https-redirectscheme\n      tls: {}\n      service: idrac-console\n    opnsense:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`opnsense.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: opnsense\n    pterodactyl:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`pterodactyl.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: pterodactyl\n    openmediavault:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`openmediavault.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: openmediavault\n\n#endregion\n#region services\n  services:\n    proxmox:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.100:8006\"\n        passHostHeader: true\n    pihole:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.101:80\"\n        passHostHeader: true\n    homebridge:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.102:10999\"\n        passHostHeader: true\n    homeassistant:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.102:10999\"\n        passHostHeader: true\n    syncthing:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.103:8384\"\n        passHostHeader: true\n    truenas:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.104\"\n        passHostHeader: true\n    plex:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.105:32400\"\n        passHostHeader: true\n    minio:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.106:9000/\"\n        passHostHeader: true\n    rancher:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.107\"\n        passHostHeader: true\n    idrac:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.108\"\n        passHostHeader: true\n    idrac-console:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.108:5900\"\n        passHostHeader: true\n    opnsense:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.109\"\n        passHostHeader: true\n    pterodactyl:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.110:80\"\n        passHostHeader: true\n    openmediavault:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.111:80\"\n        passHostHeader: true\n#endregion\n  middlewares:\n    addprefix-pihole:\n      addPrefix:\n        prefix: \"/admin\"\n    https-redirectscheme:\n      redirectScheme:\n        scheme: https\n        permanent: true\n    redirectregex-pihole:\n      redirectRegex:\n        regex: \"/admin/(.*)\"\n        replacement: /\n\n    default-headers:\n      headers:\n        frameDeny: true\n        browserXssFilter: true\n        contentTypeNosniff: true\n        forceSTSHeader: true\n        stsIncludeSubdomains: true\n        stsPreload: true\n        stsSeconds: 15552000\n        customFrameOptionsValue: SAMEORIGIN\n        customRequestHeaders:\n          X-Forwarded-Proto: https\n\n    idrac:\n      headers:\n        frameDeny: true\n        browserXssFilter: true\n        forceSTSHeader: true\n        stsIncludeSubdomains: true\n        stsSeconds: 15552000\n        customFrameOptionsValue: SAMEORIGIN\n        customRequestHeaders:\n          X-Forwarded-Proto: https\n\n    default-whitelist:\n      ipAllowList:\n        sourceRange:\n        - \"10.0.0.0/8\"\n        - \"192.168.0.0/16\"\n        - \"172.16.0.0/12\"\n\n    secured:\n      chain:\n        middlewares:\n        - default-whitelist\n        - default-headers"
-      }
-    ],
-    "markdown": "## Traefik\nsee also [[Teleport]], [[Tailscale]]\n\n---\n\n[Reddit - Traefik with multiple lxcs](https://www.reddit.com/r/Traefik/s/sUgxpqsvhe)\n\nBEST & NEW:\n[Traefik 3 and FREE Wildcard Certificates with Docker | Techno Tim](https://technotim.live/posts/traefik-3-docker-certificates/)\n[Traefik 3 and FREE Wildcard Certificates with Docker - YouTube](https://www.youtube.com/watch?v=n1vOfdz5Nm8)\nAND\n[Traefik + Docker - Christian Lempa - YouTube](https://www.youtube.com/watch?v=NzSdNoR-JPo)\n\nSecurity see [[CrowdSec]]\n\n[Is this the BEST Reverse Proxy for Docker? // Traefik Tutorial - YouTube](https://www.youtube.com/watch?v=wLrmmh1eI94)\n[boilerplates/docker-compose/traefik at main · ChristianLempa/boilerplates · GitHub](https://github.com/ChristianLempa/boilerplates/tree/main/docker-compose/traefik)\n\nOr this\n[Put Wildcard Certificates and SSL on EVERYTHING - Traefik + Portainer Tutorial - YouTube](https://www.youtube.com/watch?v=liV3c9m_OX8)\n[Put Wildcard Certificates and SSL on EVERYTHING | Techno Tim](https://technotim.live/posts/traefik-portainer-ssl/)\n[techno-tim.github.io/reference\\_files/traefik-portainer-ssl/traefik at master · techno-tim/techno-tim.github.io · GitHub](https://github.com/techno-tim/techno-tim.github.io/tree/master/reference_files/traefik-portainer-ssl/traefik)\n\n### Default Labels\n```yaml\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.APP.rule=Host(`APP.local.jalubru.com`)\"\n      - \"traefik.http.routers.APP.entrypoints=https\"\n      - \"traefik.http.routers.APP.tls=true\"\n      - \"traefik.http.services.APP.loadbalancer.server.port=PORT\"\n```\n```yaml\n    networks:\n      proxy:\n        external: true\n```\n\n### Docker\n\n```bash\nsudo mkdir -p /home/apps/traefik/data/\n```\n\n```bash\nsudo touch /home/apps/traefik/{cf_api_token.txt,docker-compose.yaml} && sudo touch /home/apps/traefik/data/{acme.json,config.yml,traefik.yml} && sudo chmod 600 /home/apps/traefik/data/acme.json\n```\n\n#### Traefik.yaml\n\n```bash\nsudo nano /home/apps/traefik/data/traefik.yml\n```\n\n```yaml\napi:\n  dashboard: true\n  debug: true\nentryPoints:\n  http:\n    address: \":80\"\n    http:\n      redirections:\n        entryPoint:\n          to: https\n          scheme: https\n  https:\n    address: \":443\"\nserversTransport:\n  insecureSkipVerify: true\nproviders:\n  docker:\n    endpoint: \"unix:///var/run/docker.sock\"\n    exposedByDefault: false\n  file:\n    filename: /config.yml\ncertificatesResolvers:\n  cloudflare:\n    acme:\n      email: jalu@bruderek.de\n      storage: acme.json\n      # caServer: https://acme-v02.api.letsencrypt.org/directory # prod (default)\n      caServer: https://acme-staging-v02.api.letsencrypt.org/directory # staging\n      dnsChallenge:\n        provider: cloudflare\n        #disablePropagationCheck: true # uncomment this if you have issues pulling certificates through cloudflare, By setting this flag to true disables the need to wait for the propagation of the TXT record to all authoritative name servers.\n        #delayBeforeCheck: 60s # uncomment along with disablePropagationCheck if needed to ensure the TXT record is ready before verification is attempted \n        resolvers:\n          - \"1.1.1.1:53\"\n          - \"1.0.0.1:53\"\n```\n\n#### Docker compose\n\n```bash\nsudo docker network create proxy\n```\n\n```bash\nsudo nano /home/apps/traefik/docker-compose.yaml\n```\n\n```yaml\nservices:\n  traefik:\n    image: traefik:latest\n    container_name: traefik\n    restart: unless-stopped\n    security_opt:\n      - no-new-privileges:true\n    networks:\n      - proxy\n    ports:\n      - 80:80\n      - 443:443\n      # - 443:443/tcp # Uncomment if you want HTTP3\n      # - 443:443/udp # Uncomment if you want HTTP3\n    environment:\n##      CF_DNS_API_TOKEN_FILE: /run/secrets/cf_api_token # note using _FILE for docker secrets\n      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN} # if using .env\n      TRAEFIK_DASHBOARD_CREDENTIALS: ${TRAEFIK_DASHBOARD_CREDENTIALS}\n    secrets:\n      - cf_api_token\n    env_file: .env # use .env\n    volumes:\n      - /etc/localtime:/etc/localtime:ro\n      - /var/run/docker.sock:/var/run/docker.sock:ro\n      - /home/apps/traefik/data/traefik.yml:/traefik.yml:ro\n      - /home/apps/traefik/data/acme.json:/acme.json\n##      - /home/apps/traefik/data/config.yml:/config.yml:ro\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.traefik.entrypoints=http\"\n      - \"traefik.http.routers.traefik.rule=Host(`traefik.local.jalubru.com`)\"\n      - \"traefik.http.middlewares.traefik-auth.basicauth.users=[REDACTED]\"\n      - \"traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https\"\n      - \"traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https\"\n      - \"traefik.http.routers.traefik.middlewares=traefik-https-redirect\"\n      - \"traefik.http.routers.traefik-secure.entrypoints=https\"\n      - \"traefik.http.routers.traefik-secure.rule=Host(`traefik.local.jalubru.com`)\"\n      - \"traefik.http.routers.traefik-secure.middlewares=traefik-auth\"\n      - \"traefik.http.routers.traefik-secure.tls=true\"\n      - \"traefik.http.routers.traefik-secure.tls.certresolver=cloudflare\"\n      - \"traefik.http.routers.traefik-secure.tls.domains[0].main=local.jalubru.com\"\n      - \"traefik.http.routers.traefik-secure.tls.domains[0].sans=*.local.jalubru.com\"\n      - \"traefik.http.routers.traefik-secure.service=api@internal\"\n\nsecrets:\n  cf_api_token:\n    file: /home/apps/traefik/data/cloudflare.env\n\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\nsudo nano /home/apps/traefik/cf_api_token.txt\n```\nfrom [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens)\n\n```bash\necho \"CLOUDFLARE_DNS_API_TOKEN=\" | sudo tee /home/apps/traefik/data/cloudflare.env > /dev/null\n```\n\n```bash\nsudo apt update\nsudo apt install apache2-utils\n```\n\n```bash\necho $(htpasswd -nB admin) | sed -e s/\\\\$/\\\\$\\\\$/g\n```\n\n```bash\nsudo nano /home/apps/traefik/.env\n```\n\n```bash\nTRAEFIK_DASHBOARD_CREDENTIALS=\n```\n\n```bash\nsudo docker compose -f /home/apps/traefik/docker-compose.yaml up -d\n```\n\nCreate local DNS record pointing to IP address of container and CNAME pointing to that record using [[Pi-Hole]]\n\nif everything is working, go back to traefik.yaml and comment out staging and uncomment production and delete acme.json contents\n\nFor [[Teleport]] setup, see Lempa video\n\n```bash\nsudo docker compose -f /home/apps/traefik/docker-compose.yaml up -d --force-recreate\n```\n\n#### config.yml\n```Bash\nsudo nano /home/apps/traefik/data/config.yml\n```\n\nJust proxmox and pi-hole\n```yaml \nhttp:\n #region routers \n  routers:\n    proxmox:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`proxmox.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: proxmox\n    pihole:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`pihole.local.jalubru.com`)\"\n      middlewares:\n        #- redirectregex-pihole\n        - default-headers\n        #- addprefix-pihole\n        - https-redirectscheme\n      tls: {}\n      service: pihole\n    portainer:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`portainer.local.jalubru.com`)\"\n      tls: true\n      service: portainer\n#endregion\n#region services\n  services:\n    proxmox:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.192:8006\"\n        passHostHeader: true\n    pihole:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.190:80\"\n        passHostHeader: true\n    portainer:\n      loadBalancer:\n        servers:\n          - url: \"http://portainer:9000\"\n#endregion\n  middlewares:\n    addprefix-pihole:\n      addPrefix:\n        prefix: \"/admin\"\n    https-redirectscheme:\n      redirectScheme:\n        scheme: https\n        permanent: true\n    redirectregex-pihole:\n      redirectRegex:\n        regex: \"/admin/(.*)\"\n        replacement: /\n    default-headers:\n      headers:\n        frameDeny: true\n        browserXssFilter: true\n        contentTypeNosniff: true\n        forceSTSHeader: true\n        stsIncludeSubdomains: true\n        stsPreload: true\n        stsSeconds: 15552000\n        customFrameOptionsValue: SAMEORIGIN\n        customRequestHeaders:\n          X-Forwarded-Proto: https\n\n    default-whitelist:\n      ipAllowList:\n        sourceRange:\n        - \"10.0.0.0/8\"\n        - \"192.168.0.0/16\"\n        - \"172.16.0.0/12\"\n\n    secured:\n      chain:\n        middlewares:\n        - default-whitelist\n        - default-headers\n```\n\nAll possible:\n```yaml\nhttp:\n #region routers\n  routers:\n    proxmox:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`proxmox.local.example.com`)\" \n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: proxmox\n    pihole:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`pihole.local.example.com`)\"\n      middlewares:\n        - redirectregex-pihole\n        - default-headers\n        - addprefix-pihole\n        - https-redirectscheme\n      tls: {}\n      service: pihole\n    homebridge:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`homebridge.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: homebridge\n    homeassistant:\n      # For Homeassistant config, check: https://www.home-assistant.io/integrations/http/#reverse-proxies\n      # This relies on Homeassistant using http. No certs are needed in the Homeassistant config.\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`homeassistant.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: homeassistant\n    syncthing:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`syncthing.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: syncthing\n    truenas:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`truenas.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: truenas\n    plex:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`plex.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: plex\n    minio:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`minio.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: minio\n    rancher:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`rancher.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: rancher\n    idrac:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`idrac.local.example.com`)\"\n      middlewares:\n        - idrac\n        - https-redirectscheme\n      tls: {}\n      service: idrac\n    idrac-console:\n      entryPoints:\n        - \"idrac\" # REQUIRED for iDRAC virtual console: Create a new TCP entry point in traefik on port 5900\n      rule: \"Host(`idrac.local.example.com`)\"\n      middlewares:\n        - idrac\n        - https-redirectscheme\n      tls: {}\n      service: idrac-console\n    opnsense:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`opnsense.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: opnsense\n    pterodactyl:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`pterodactyl.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: pterodactyl\n    openmediavault:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`openmediavault.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: openmediavault\n\n#endregion\n#region services\n  services:\n    proxmox:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.100:8006\"\n        passHostHeader: true\n    pihole:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.101:80\"\n        passHostHeader: true\n    homebridge:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.102:10999\"\n        passHostHeader: true\n    homeassistant:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.102:10999\"\n        passHostHeader: true\n    syncthing:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.103:8384\"\n        passHostHeader: true\n    truenas:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.104\"\n        passHostHeader: true\n    plex:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.105:32400\"\n        passHostHeader: true\n    minio:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.106:9000/\"\n        passHostHeader: true\n    rancher:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.107\"\n        passHostHeader: true\n    idrac:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.108\"\n        passHostHeader: true\n    idrac-console:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.108:5900\"\n        passHostHeader: true\n    opnsense:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.109\"\n        passHostHeader: true\n    pterodactyl:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.110:80\"\n        passHostHeader: true\n    openmediavault:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.111:80\"\n        passHostHeader: true\n#endregion\n  middlewares:\n    addprefix-pihole:\n      addPrefix:\n        prefix: \"/admin\"\n    https-redirectscheme:\n      redirectScheme:\n        scheme: https\n        permanent: true\n    redirectregex-pihole:\n      redirectRegex:\n        regex: \"/admin/(.*)\"\n        replacement: /\n\n    default-headers:\n      headers:\n        frameDeny: true\n        browserXssFilter: true\n        contentTypeNosniff: true\n        forceSTSHeader: true\n        stsIncludeSubdomains: true\n        stsPreload: true\n        stsSeconds: 15552000\n        customFrameOptionsValue: SAMEORIGIN\n        customRequestHeaders:\n          X-Forwarded-Proto: https\n\n    idrac:\n      headers:\n        frameDeny: true\n        browserXssFilter: true\n        forceSTSHeader: true\n        stsIncludeSubdomains: true\n        stsSeconds: 15552000\n        customFrameOptionsValue: SAMEORIGIN\n        customRequestHeaders:\n          X-Forwarded-Proto: https\n\n    default-whitelist:\n      ipAllowList:\n        sourceRange:\n        - \"10.0.0.0/8\"\n        - \"192.168.0.0/16\"\n        - \"172.16.0.0/12\"\n\n    secured:\n      chain:\n        middlewares:\n        - default-whitelist\n        - default-headers\n```\n\n---\n>[[00 Homelab|home]]"
-  },
-  "cloudflaretunnel": {
-    "serviceId": "cloudflaretunnel",
-    "sourceFile": "Cloudflare Tunnel.md",
-    "title": "Cloudflare Tunnel",
-    "frontmatter": {
-      "tags": [
-        "Homelab/Apps"
-      ],
-      "aliases": [
-        "Cloudflare Tunnel"
-      ],
-      "ITname": "Cloudflare Tunnel",
-      "ITcategory": "Tunnel",
-      "ITmachine": [
-        "OptiPi"
+        "Raspberry Pi"
       ],
       "ITinstalltype": "docker",
       "ITstatus": [
         "installed"
       ]
     },
-    "summary": "Cloudflare Tunnel [How to use Cloudflare Tunnel in your Homelab (even with Traefik) - YouTube](https://www.youtube.com/watch?v=yMmxw-DZ5Ec&) [videos/cloudflare-tunnel-tutorial at main · ChristianLempa/videos · GitHub](https://github.com/ChristianLempa/videos/tree/main/cloudflare-tunnel-tutorial)",
+    "summary": "Nginx Proxy Manager See also - Nextcloud See also - Homeassistant",
     "links": [
       {
-        "label": "How to use Cloudflare Tunnel in your Homelab (even with Traefik) - YouTube",
-        "url": "https://www.youtube.com/watch?v=yMmxw-DZ5Ec&"
+        "label": "Nginx Proxy Manager",
+        "url": "https://nginxproxymanager.com/"
       },
       {
-        "label": "videos/cloudflare-tunnel-tutorial at main · ChristianLempa/videos · GitHub",
-        "url": "https://github.com/ChristianLempa/videos/tree/main/cloudflare-tunnel-tutorial"
+        "label": "https://nginxproxymanager.com/guide/",
+        "url": "https://nginxproxymanager.com/guide/"
+      },
+      {
+        "label": "portainer.io",
+        "url": "http://serverpi.local:9000/#!/2/docker/stacks"
+      },
+      {
+        "label": "github.com/christianlempa/videos/tree/main/nginxproxymanager-tutorial",
+        "url": "https://github.com/christianlempa/videos/tree/main/nginxproxymanager-tutorial"
+      },
+      {
+        "label": "notthebe.ee/blog/easy-ssl-in-homelab-dns01/",
+        "url": "https://notthebe.ee/blog/easy-ssl-in-homelab-dns01/"
+      },
+      {
+        "label": "www.youtube.com/watch?v=qlcVx-k-02E&t",
+        "url": "https://www.youtube.com/watch?v=qlcVx-k-02E&t"
+      },
+      {
+        "label": "github.com/chrisbeardy/nextcloud-docker-raspberrypi-tutorial",
+        "url": "https://github.com/chrisbeardy/nextcloud-docker-raspberrypi-tutorial"
+      },
+      {
+        "label": "192.168.0.195:81/",
+        "url": "http://192.168.0.195:81/"
       }
     ],
     "codeBlocks": [
       {
         "language": "bash",
-        "code": "sudo mkdir /home/apps/cloudflaretunnel"
+        "code": "docker network create proxy\nmkdir /home/server/apps/nginxproxymanager/{data,letsencrypt}"
       },
       {
         "language": "bash",
-        "code": "sudo nano /home/apps/cloudflaretunnel/docker-compose.yaml"
+        "code": "sudo nano /home/server/apps/nginxproxymanager/docker-compose.yaml"
       },
       {
         "language": "yaml",
-        "code": "services:\n  cloudflaretunnel:\n    container_name: cloudflaretunnel\n    image: cloudflare/cloudflared:latest\n    environment:\n      - TUNNEL_TOKEN=\n    [REDACTED] tunnel --no-autoupdate run\n    networks:\n      - proxy\n    restart: unless-stopped\n\nnetworks:\n  proxy:\n    external: true"
+        "code": "networks:\n  proxy:\n    external: true\n\nservices:\n  nginxproxymanager:\n    image: \"jc21/nginx-proxy-manager:latest\"\n    container_name: nginxproxymanager \n    restart: always\n    ports:\n      - \"80:80\"\n      - \"443:443\"\n      - \"81:81\"\n    environment:\n      DB_SQLITE_FILE: \"/data/database.sqlite\"\n      DISABLE_IPV6: \"true\"\n    volumes:\n      - /home/server/apps/nginxproxymanager/data:/data\n      - /home/server/apps/nginxproxymanager/letsencrypt:/etc/letsencrypt\n    networks:\n      - proxy"
       },
       {
         "language": "bash",
-        "code": "sudo docker compose -f /home/apps/cloudflaretunnel/docker-compose.yaml up -d"
+        "code": "sudo docker compose -f /home/server/apps/nginxproxymanager/docker-compose.yaml up -d"
+      },
+      {
+        "language": "text",
+        "code": "Email:    admin@example.com\nPassword: changeme"
+      },
+      {
+        "language": "bash",
+        "code": "sudo mkdir /home/server/apps/nginxproxymanager\nsudo mkdir /media/wd2001ext4"
+      },
+      {
+        "language": "bash",
+        "code": "cd /home/server/apps/nginxproxymanager"
+      },
+      {
+        "language": "bash",
+        "code": "sudo nano docker-compose.yaml"
+      },
+      {
+        "language": "yaml",
+        "code": "version: '2.2' \n\nnetworks:\n  frontend:\n    external:\n      name: proxy\n  backend:\n  \nservices:\n##  nginxproxymanager:\n##    image: 'jc21/nginx-proxy-manager:latest'\n##    container_name: nginxproxymanager \n##    restart: unless-stopped \n##    ports:\n##      - '80:80' \n##      - '81:81' \n##      - '443:443' \n##    environment:\n      # Mysql/Maria connection parameters:\n##      - DB_MYSQL_HOST: \"database\"\n##      - DB_MYSQL_PORT: 3306\n##      - DB_MYSQL_USER: \"npm\"\n##      - DB_MYSQL_PASSWORD: \"[REDACTED-DB-PASSWORD]\"\n##      - DB_MYSQL_NAME: \"npm\"\n##      - DISABLE_IPV6: 'true'\n##    volumes: \n##      - ./nginx/data:/data \n##      - ./nginx/letsencrypt:/etc/letsencrypt\n##    depends_on:\n##      - database\n\n  nextcloud:\n    image: lscr.io/linuxserver/nextcloud:latest\n    container_name: nextcloud \n    environment: \n      - PUID=1000 \n      - PGID=1000 \n      - TZ=Europe/Riga \n      - MYSQL_HOST=nextcloud-db\n##      - MYSQL_PORT=3306\n      - MYSQL_USER=nextcloud\n      - MYSQL_PASSWORD=[REDACTED-DB-PASSWORD]\n      - MYSQL_DATABASE=nextcloud\n      - PHP_UPLOAD_LIMIT=10G\n      - PHP_MEMORY_LIMIT=512M\n    volumes: \n      - ./nextcloud/appdata:/config \n      - ./nextcloud/data:/data \n    restart: unless-stopped \n\n  jellyfin: \n    image: lscr.io/linuxserver/jellyfin:latest \n    container_name: jellyfin \n    environment: \n      - PUID=1000 \n      - PGID=1000 \n      - TZ=Europe/Riga \n    volumes: \n      - ./jellyfin/config:/config \n      - ./jellyfin/tvshows:/data/tvshows \n      - ./jellyfin/movies:/data/movies \n    restart: unless-stopped"
+      },
+      {
+        "language": "yaml",
+        "code": "version: '3.8'\nservices:\n  app:\n    image: 'jc21/nginx-proxy-manager:latest'\n    restart: unless-stopped\n    ports:\n      - '80:80' # Public HTTP Port\n      - '443:443' # Public HTTPS Port\n      - '81:81' # Admin Web Port\n    environment:\n      DB_MYSQL_HOST: \"db\"\n      DB_MYSQL_PORT: 3306\n      DB_MYSQL_USER: \"npm\"\n      DB_MYSQL_PASSWORD: \"npm\"\n      DB_MYSQL_NAME: \"npm\"\n      DISABLE_IPV6: 'true'\n    volumes:\n      - ./data:/data\n      - ./letsencrypt:/etc/letsencrypt\n    depends_on:\n      - db\n  db:\n    image: 'jc21/mariadb-aria:latest'\n    restart: unless-stopped\n    environment:\n      MYSQL_ROOT_PASSWORD: 'npm'\n      MYSQL_DATABASE: 'npm'\n      MYSQL_USER: 'npm'\n      MYSQL_PASSWORD: 'npm'\n    volumes:\n      - ./mysql:/var/lib/mysql"
+      },
+      {
+        "language": "bash",
+        "code": "docker compose up -d"
       }
     ],
-    "markdown": "## Cloudflare Tunnel\n\n---\n[How to use Cloudflare Tunnel in your Homelab (even with Traefik) - YouTube](https://www.youtube.com/watch?v=yMmxw-DZ5Ec&)\n[videos/cloudflare-tunnel-tutorial at main · ChristianLempa/videos · GitHub](https://github.com/ChristianLempa/videos/tree/main/cloudflare-tunnel-tutorial)\n\n---\n### Docker Compose\n\n```bash\nsudo mkdir /home/apps/cloudflaretunnel\n```\n\n```bash\nsudo nano /home/apps/cloudflaretunnel/docker-compose.yaml\n```\n\n```yaml\nservices:\n  cloudflaretunnel:\n    container_name: cloudflaretunnel\n    image: cloudflare/cloudflared:latest\n    environment:\n      - TUNNEL_TOKEN=\n    [REDACTED] tunnel --no-autoupdate run\n    networks:\n      - proxy\n    restart: unless-stopped\n\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /home/apps/cloudflaretunnel/docker-compose.yaml up -d\n```\n\n---\n>[[00 Homelab|home]]"
+    "markdown": "## Nginx Proxy Manager\n\n---\nhttps://github.com/christianlempa/videos/tree/main/nginxproxymanager-tutorial\nhttps://notthebe.ee/blog/easy-ssl-in-homelab-dns01/\nhttps://www.youtube.com/watch?v=qlcVx-k-02E&t\n---\n\n[[Nextcloud|See also - Nextcloud]]\n[[Homeassistant|See also - Homeassistant]]\n[[Jellyfin|See also - Jellyfin]] or [[Mediaserver]]\n\n### Chrisbeard Tutorial\nhttps://github.com/chrisbeardy/nextcloud-docker-raspberrypi-tutorial\n\n#### Setting up the reverse proxy stack\n\nWe are going to use [Nginx Proxy Manager](https://nginxproxymanager.com/) for our reverse proxy, but as we are only running on a raspberry pi will setup using sqlite and not a full SQL database.\n\n```bash\ndocker network create proxy\nmkdir /home/server/apps/nginxproxymanager/{data,letsencrypt}\n```\n\n```bash\nsudo nano /home/server/apps/nginxproxymanager/docker-compose.yaml\n```\n\n```yaml\nnetworks:\n  proxy:\n    external: true\n\nservices:\n  nginxproxymanager:\n    image: \"jc21/nginx-proxy-manager:latest\"\n    container_name: nginxproxymanager \n    restart: always\n    ports:\n      - \"80:80\"\n      - \"443:443\"\n      - \"81:81\"\n    environment:\n      DB_SQLITE_FILE: \"/data/database.sqlite\"\n      DISABLE_IPV6: \"true\"\n    volumes:\n      - /home/server/apps/nginxproxymanager/data:/data\n      - /home/server/apps/nginxproxymanager/letsencrypt:/etc/letsencrypt\n    networks:\n      - proxy\n```\n\nCreate container:\n\n```bash\nsudo docker compose -f /home/server/apps/nginxproxymanager/docker-compose.yaml up -d\n```\n\nNavigate to `http://192.168.0.195:81` and enter the default credentials:\n\n```\nEmail:    admin@example.com\nPassword: changeme\n```\n\nYou will immediately be prompted to change these.\n\n---\n\n### Set up Nginx Proxy Manager\n\ncreate directory for nginxproxymanager\n```bash\nsudo mkdir /home/server/apps/nginxproxymanager\nsudo mkdir /media/wd2001ext4\n```\n\ngo to folder\n```bash\ncd /home/server/apps/nginxproxymanager\n```\n\nCreate a new file `docker-compose.yaml` file, please refer to the nginxproxymanager documentation: [https://nginxproxymanager.com/guide/](https://nginxproxymanager.com/guide/).\n```bash\nsudo nano docker-compose.yaml\n```\n\n```yaml\nversion: '2.2' \n\nnetworks:\n  frontend:\n    external:\n      name: proxy\n  backend:\n  \nservices:\n##  nginxproxymanager:\n##    image: 'jc21/nginx-proxy-manager:latest'\n##    container_name: nginxproxymanager \n##    restart: unless-stopped \n##    ports:\n##      - '80:80' \n##      - '81:81' \n##      - '443:443' \n##    environment:\n      # Mysql/Maria connection parameters:\n##      - DB_MYSQL_HOST: \"database\"\n##      - DB_MYSQL_PORT: 3306\n##      - DB_MYSQL_USER: \"npm\"\n##      - DB_MYSQL_PASSWORD: \"[REDACTED-DB-PASSWORD]\"\n##      - DB_MYSQL_NAME: \"npm\"\n##      - DISABLE_IPV6: 'true'\n##    volumes: \n##      - ./nginx/data:/data \n##      - ./nginx/letsencrypt:/etc/letsencrypt\n##    depends_on:\n##      - database\n\n  nextcloud:\n    image: lscr.io/linuxserver/nextcloud:latest\n    container_name: nextcloud \n    environment: \n      - PUID=1000 \n      - PGID=1000 \n      - TZ=Europe/Riga \n      - MYSQL_HOST=nextcloud-db\n##      - MYSQL_PORT=3306\n      - MYSQL_USER=nextcloud\n      - MYSQL_PASSWORD=[REDACTED-DB-PASSWORD]\n      - MYSQL_DATABASE=nextcloud\n      - PHP_UPLOAD_LIMIT=10G\n      - PHP_MEMORY_LIMIT=512M\n    volumes: \n      - ./nextcloud/appdata:/config \n      - ./nextcloud/data:/data \n    restart: unless-stopped \n\n  jellyfin: \n    image: lscr.io/linuxserver/jellyfin:latest \n    container_name: jellyfin \n    environment: \n      - PUID=1000 \n      - PGID=1000 \n      - TZ=Europe/Riga \n    volumes: \n      - ./jellyfin/config:/config \n      - ./jellyfin/tvshows:/data/tvshows \n      - ./jellyfin/movies:/data/movies \n    restart: unless-stopped\n\n```\n\n**Example Docker-Compose File**:\n```yaml\nversion: '3.8'\nservices:\n  app:\n    image: 'jc21/nginx-proxy-manager:latest'\n    restart: unless-stopped\n    ports:\n      - '80:80' # Public HTTP Port\n      - '443:443' # Public HTTPS Port\n      - '81:81' # Admin Web Port\n    environment:\n      DB_MYSQL_HOST: \"db\"\n      DB_MYSQL_PORT: 3306\n      DB_MYSQL_USER: \"npm\"\n      DB_MYSQL_PASSWORD: \"npm\"\n      DB_MYSQL_NAME: \"npm\"\n      DISABLE_IPV6: 'true'\n    volumes:\n      - ./data:/data\n      - ./letsencrypt:/etc/letsencrypt\n    depends_on:\n      - db\n  db:\n    image: 'jc21/mariadb-aria:latest'\n    restart: unless-stopped\n    environment:\n      MYSQL_ROOT_PASSWORD: 'npm'\n      MYSQL_DATABASE: 'npm'\n      MYSQL_USER: 'npm'\n      MYSQL_PASSWORD: 'npm'\n    volumes:\n      - ./mysql:/var/lib/mysql\n```\n\nStart the Nginx Proxy Manager\n```bash\ndocker compose up -d\n```\n\nLogin to the web UI of NGINX proxy manager\n\nNow we can log in to the web UI. Simply use your browser to connect to your server by using the IP address or an FQDN and connect on port `81`. Log in with the username `admin@example.com` and the password `changeme`. Next, you should change your username and password, and that’s it!\n\n---\n### Deployment via Portainer\n\n1. Go to [portainer.io](http://serverpi.local:9000/#!/2/docker/stacks)\n2. Click on \"Stacks\"\n3. \"\"+ Add stack\"\n4. Name: \"nginxproxymanager\"\n5. Insert `docker-compose` file into Web editor (change version 3 to version: '2')\n6. Click \"Deploy this stack\"\n7. Go to http://192.168.0.195:81/ \n\n---\n>[[00 Homelab|home]]"
   },
   "pihole": {
     "serviceId": "pihole",
@@ -629,430 +1029,213 @@ export const serviceDocs = {
     ],
     "markdown": "## Pi-Hole\n\n---\n\n[Text - The World’s Greatest Pi-hole (and Unbound) Tutorial 2023](https://www.crosstalksolutions.com/the-worlds-greatest-pi-hole-and-unbound-tutorial-2023/#Let%E2%80%99s_get_started)\n[Youtube - World's Greatest Pi-hole Tutorial - Easy Raspberry Pi Project!](https://www.youtube.com/watch?v=cE21YjuaB6o)\nhttps://www.raspberrypi.com/tutorials/running-pi-hole-on-a-raspberry-pi/\nhttps://pimylifeup.com/pi-hole-docker/#:~:text=You%20can%20run%20Pi-Hole,set%20up%20within%20the%20container\n\n### Adlists\n[The Firebog](https://firebog.net/)\n[Commonly Whitelisted Domains - FAQs - Pi-hole Userspace](https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212)\n\n---\n### Prerequisites\nStatic IP [[Set static IP]]\n\n---\n### Check if blocking is working\n\n[d3ward.github.io](https://d3ward.github.io/toolz/adblock.html)\n\n---\n### Installation\n\n#### LXC\n[Pi-hole Proxmox - YouTube](https://youtu.be/rDNWhwWCk2k?si=cjw1yDWAfof9ZRNo)\n#### Version 6 error (too many reloads)\n- [Pihole v6 Traefik fix : r/pihole](https://www.reddit.com/r/pihole/comments/1iu44g8/pihole_v6_traefik_fix/)\n\nChange local usage by inserting container IP into DNS settings\n\n#### Docker Compose\n\n#### Script\n```bash\ncurl -sSL https://install.pi-hole.net | bash\n```\n\npi-hole installation complete.png\n\nChange admin password\n```bash\npihole -a -p\n```\n\n---\n### Configuration\n\nLog into the Pi-hole GUI\n\nhttp://192.168.0.195/admin\nor\nhttp://pi.hole/admin\n\nDown the left-hand side of the dashboard are our menu options. The 4 colored blocks across the top are some statistics. The blue box is the total number of queries Pi-hole has processed. The red box is how many of those queries matched FQDN’s on the block list and were blocked. The yellow box is a percentage of blocked requests (red box divided into the blue box). Finally the green box is the number of domains that are on the block lists. Since we only have a single block list for now, we can see we have about 158,000 domains that will be blocked by this Pi-hole.\n\nGoing down the left-hand menu – I won’t cover every single setting, but I will point out some of the more important ones.\n\n**Query Log** – this shows you the Pi-hole’s history of DNS lookups in descending order (most recent lookups at the top). You can see all domain statuses – both passed and blocked domains. For passed domains, there is a button to blacklist, and for blocked domains, there is a button to whitelist.\n\n**Long-Term Data** – much like the Query Log, this section gives you a deeper dive look into the Pi-hole’s DNS history and lets you filter into that data in great detail.\n\n**Groups and Clients** – some pretty interesting functionality here in Groups and Clients – we’re not going to dig into this section for this tutorial, but you can use this section if you wanted to block DNS queries for all devices except for devices in a specific group. Or, if you wanted to ONLY block DNS queries for devices in a specific group – you can get very granular with which clients and groups use which block lists as well.\n\n**Domains** – this section allows you to specifically add domains to a blacklist or whitelist. For instance, if there are specific stores where you like to shop online, and those stores are being blocked, you can whitelist them here.\n\n**Blocking Resources** – if you’re interested in taking a deeper dive into what block lists you can add to Pi-hole, here are some good resources:  \n  \n[The Best Pi-hole Blocklists](https://avoidthehack.com/best-pihole-blocklists) – Avoidthehack.com – This article does an excellent job of explaining the different types of block lists, and then lists a number of resources for lists in different categories of blocking.  \n  \n[The Firebog](https://firebog.net/) (blocklist collection) – This blocklist resource does an excellent job of providing sources of blocklists in multiple categories such as Suspicious, Advertising, Tracking & Telemetry, & Malicious. It further breaks those lists down into green links and blue links – the green links are the ones least likely to interfere with normal Internet activity. A good rule of thumb is to add one or two of these lists from each category to your Pi-hole.  \n\nOne more thing to point out – there is a list of [commonly whitelisted domains](https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212) over at Pi-hole.net. If you’re having issues with a particular website or service (say Spotify or Xbox functionality for instance), go see if there are resources for whitelisting that particular service on that page – it may save you a lot of headache.\n\nCopy the first link under ‘Suspicious Lists’ and paste it into the ‘Address:’ field – then click Add.\n\nRepeat this for as many block lists as you want – for this tutorial, I’m going to copy/paste the first two green URLs from each of the Firebog sections. Once completed, we need to tell Pi-hole to import these lists.\n\nNavigate to Tools –> Update Gravity and then click the ‘Update’ button. This will comb through all of the block lists and add the blocked URLs to the Pi-hole database. Once complete, you’ll see a green ‘Success’ banner at the top of the screen.\n\n---\n### Error Fixing\n\n```\nDataTables warning: table id=messagesTable - Ajax error. For more information about this error, please see http://datatables.net/tn/7\n```\n\nInstall php-sqlite3\n```bash\nsudo apt install php-sqlite3\n```\n\nadd apache user to pihole group\n```bash\nusermod -aG pihole www-data\n```\n\nrestart apache server\n```bash\nsudo systemctl restart apache2\n```\nhttps://discourse.pi-hole.net/t/pihole-5-upgrade-error-datatables-warning-table-id-groupstable-ajax-error-for-more-information-about-this-error/32275\n\nadd ufw rules to allow pihole access (IPv4)\n```bash\nsudo ufw allow 80/tcp \nsudo ufw allow 53/tcp \nsudo ufw allow 53/udp \nsudo ufw allow 67/tcp \nsudo ufw allow 67/udp\n```\n\n---\n### Disable Blocking\n\nthis lets you stop Pi-hole from blocking any domains for various amounts of time (or indefinitely). Very useful in troubleshooting – if something isn’t working in your network or Internet browsing, try disabling blocking for 5 minutes and see if that fixes it. If it DOES fix it, then you know there are probably some domains you’re going to have to whitelist.\n\nOne extra tip since we’re talking about disabling blocking – logging into the Pi-hole Admin GUI to disable blocking can be cumbersome! I find myself doing this on a fairly regular basis (once or twice a week), and I have multiple Pi-holes running for redundancy! So – it can take some time. To shorten up the time it takes to disable blocking, you can do some scripting. It all starts with this URL:\n\n```\nhttp://192.168.0.195/admin/api.php?disable=300&auth=PWHASH\n```\n\nLet’s break this down – the IP address is the IP address of your Pi-hole (don’t use mine for this). The ‘disable=300’ means disable for 300 seconds (5 minutes), and the auth=PWHASH is the hashed value of WEBPASSWORD which can be found in the /etc/pihole/setupVars.conf file. You can see it if you log into your Pi-hole with SSH and run the command:\n\n```\ncat /etc/pihole/setupVars.conf |grep WEBPASSWORD\n```\n\nThis will show you your hashed password – copy and paste everything after the = and append it to the end of the URL above.\n\n---\n### Configure Devices to use the Pi-hole\n\nAwesome – we’ve got our Pi-hole all up and running, and configured to block ads and other bad guys. But – right now, nothing is using this Pi-hole! Let’s fix that – there are two main ways to configure your devices to use the Pi-hole – manually, and via DHCP.\n\nManual device configuration – to configure your devices to use the Pi-hole manually, you need to open up your device’s network settings and set your DNS server to be the IP address of the Pi-hole (or Pi-holes if you’re setting up multiple for redundancy).\n\nIn Windows 11, you’ll need to go to Network & Internet settings, click on ‘Change adapter options’ (or Properties of the current adapter). Then ‘Edit’ IP settings.\n\nYou’ll have to set your IP address for your device to ‘Manual’ and then give it an IP, gateway, and input the IP address of your Pi-hole for ‘Preferred DNS.’ If you have multiple Pi-holes, enter the 2nd one as the ‘Alternate DNS.’\n\n---\n### Unbound Setup\n\nOK – so we have our Pi-hole working and blocking stuff – excellent! But let’s take this a step further. Right now, when we look up a website, if the Pi-hole doesn’t know where to find it, it forwards that request to an upstream DNS provider (as we have it configured right now, that upstream provider is Cloudflare). Those who are more security-conscious may not want some random 3rd party knowing which domains they’re surfing to or looking up (even though Cloudflare doesn’t keep logs of DNS queries).\n\nFor those folks, you can install Unbound on your Pi-hole. Unbound is a service that directly queries the DNS root domain servers for any uncached FQDN requests. First we’ll need to install Unbound, and then we’ll configure it for use with our Pi-hole.\n\nTo install Unbound, SSH into the Pi-hole and run this command:\n\n```\nsudo apt install unbound -y\n```\n\nThis should only take about 10-15 seconds. Next, we need to add a whole wall of text to an Unbound configuration file – create this file by running this command to edit it:\n\n```\nsudo nano -w /etc/unbound/unbound.conf.d/pi-hole.conf\n```\n\nCopy all of this text below – you can also find this text in the Pi-hole documentation [HERE](https://docs.pi-hole.net/guides/dns/unbound/).\n\n```\nserver:\n## If no logfile is specified, syslog is used\n## logfile: \"/var/log/unbound/unbound.log\"\nverbosity: 0\n\ninterface: 127.0.0.1\nport: 5335\ndo-ip4: yes\ndo-udp: yes\ndo-tcp: yes\n\n## May be set to yes if you have IPv6 connectivity\ndo-ip6: no\n\n## You want to leave this to no unless you have *native* IPv6. With 6to4 and\n## Terredo tunnels your web browser should favor IPv4 for the same reasons\nprefer-ip6: no\n\n## Use this only when you downloaded the list of primary root servers!\n## If you use the default dns-root-data package, unbound will find it automatically\n#root-hints: \"/var/lib/unbound/root.hints\"\n\n## Trust glue only if it is within the server's authority\nharden-glue: yes\n\n## Require DNSSEC data for trust-anchored zones, if such data is absent, the zone becomes BOGUS\nharden-dnssec-stripped: yes\n\n## Don't use Capitalization randomization as it known to cause DNSSEC issues sometimes\n## see https://discourse.pi-hole.net/t/unbound-stubby-or-dnscrypt-proxy/9378 for further details\nuse-caps-for-id: no\n\n## Reduce EDNS reassembly buffer size.\n## IP fragmentation is unreliable on the Internet today, and can cause\n## transmission failures when large DNS messages are sent via UDP. Even\n## when fragmentation does work, it may not be secure; it is theoretically\n## possible to spoof parts of a fragmented DNS message, without easy\n## detection at the receiving end. Recently, there was an excellent study\n## >>> Defragmenting DNS - Determining the optimal maximum UDP response size for DNS <<<\n## by Axel Koolhaas, and Tjeerd Slokker (https://indico.dns-oarc.net/event/36/contributions/776/)\n## in collaboration with NLnet Labs explored DNS using real world data from the\n## the RIPE Atlas probes and the researchers suggested different values for\n## IPv4 and IPv6 and in different scenarios. They advise that servers should\n## be configured to limit DNS messages sent over UDP to a size that will not\n## trigger fragmentation on typical network links. DNS servers can switch\n## from UDP to TCP when a DNS response is too big to fit in this limited\n## buffer size. This value has also been suggested in DNS Flag Day 2020.\nedns-buffer-size: 1232\n\n## Perform prefetching of close to expired message cache entries\n## This only applies to domains that have been frequently queried\nprefetch: yes\n\n## One thread should be sufficient, can be increased on beefy machines. In reality for most users running on small networks or on a single machine, it should be unnecessary to seek performance enhancement by increasing num-threads above 1.\nnum-threads: 1\n\n## Ensure kernel buffer is large enough to not lose messages in traffic spikes\nso-rcvbuf: 1m\n\n## Ensure privacy of local IP ranges\nprivate-address: 192.168.0.0/16\nprivate-address: 169.254.0.0/16\nprivate-address: 172.16.0.0/12\nprivate-address: 10.0.0.0/8\nprivate-address: fd00::/8\nprivate-address: fe80::/10\n```\n\nOnce you’ve pasted in that text (use SHIFT+INS to paste into PuTTY), hit CTRL+X followed by Y and ENTER to save and exit. Then we’ll restart the Unbound service:\n\n```\nsudo service unbound restart\n```\n\nIf you then run:\n\n```\nsudo service unbound status\n```\n\nYou should see that the Unbound service is active (running).\n\n---\n>[[00 Homelab|home]]"
   },
-  "mealie": {
-    "serviceId": "mealie",
-    "sourceFile": "Mealie.md",
-    "title": "Mealie",
+  "plex": {
+    "serviceId": "plex",
+    "sourceFile": "Plex.md",
+    "title": "Plex",
     "frontmatter": {
       "tags": [
         "Homelab/Apps"
       ],
       "aliases": [
-        "Mealie"
+        "Plex"
       ],
-      "ITname": "Mealie",
-      "ITcategory": "Organisation",
+      "ITname": "Plex",
+      "ITcategory": "Mediaserver",
       "ITmachine": [
-        "OptiPi"
+        "OptiPi",
+        "Raspberry Pi"
       ],
-      "ITinstalltype": "docker",
+      "ITinstalltype": "docker, lxc",
       "ITstatus": [
         "installed"
+      ],
+      "comments": "Media server LXC for movies/TV — native install, not Docker",
+      "url": [
+        "https://app.plex.tv",
+        "http://192.168.0.16:32400/web",
+        "https://plex.local.jalubru.com"
       ]
     },
-    "summary": "Mealie [Installation - Mealie](https://docs.mealie.io/documentation/getting-started/installation/sqlite/) Docker Compose",
+    "summary": "Plex Plex Media server for movies and TV. Runs as a native (non-Docker) install inside its own Proxmox LXC (`100`); the Raspberry Pi only hosts the supporting arr-stack/torrent tools, not Plex itself. [Video - addicted2t",
     "links": [
       {
-        "label": "Installation - Mealie",
-        "url": "https://docs.mealie.io/documentation/getting-started/installation/sqlite/"
+        "label": "Video - addicted2tech setup plex",
+        "url": "https://www.youtube.com/watch?v=XudbMJ_3NRc"
       },
       {
-        "label": "192.168.0.191",
-        "url": "https://192.168.0.191"
+        "label": "Text - addicted2tech plex setup using docker",
+        "url": "https://www.addictedtotech.net/install-plex-on-raspberry-pi-4-using-portainer-docker/"
+      },
+      {
+        "label": "Plex Media Server \\| Proxmox VE Helper Scripts",
+        "url": "https://community-scripts.org/scripts/plex"
       }
     ],
     "codeBlocks": [
       {
         "language": "bash",
-        "code": "sudo mkdir -p /home/apps/mealie"
-      },
-      {
-        "language": "bash",
-        "code": "docker volume create mealie-data"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /home/apps/mealie/docker-compose.yaml"
+        "code": "cd /media/wd2001ext4/apps/mediaserver/plex-config\nsudo nano docker-compose.yaml"
       },
       {
         "language": "yaml",
-        "code": "services:\n  mealie:\n    image: ghcr.io/mealie-recipes/mealie:latest # \n    container_name: mealie\n    restart: always\n    ports:\n        - \"9925:9000\" # \n    deploy:\n      resources:\n        limits:\n          memory: 1000M # \n    networks:\n      - proxy\n    volumes:\n      - mealie-data:/app/data/\n    environment:\n      # Set Backend ENV Variables Here\n      ALLOW_SIGNUP: true\n      PUID: 1000\n      PGID: 1000\n      TZ: Europe/Riga\n      MAX_WORKERS: 1\n      WEB_CONCURRENCY: 1\n      BASE_URL: https://192.168.0.191\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.mealie.rule=Host(`mealie.local.jalubru.com`)\n      - \"traefik.http.routers.mealie.entrypoints=http\"\n      - \"traefik.http.routers.mealie.tls=true\"\n      - \"traefik.http.services.mealie.loadbalancer.server.port=9925\"\nnetworks:\n  proxy:\n    external: true\nvolumes:\n  mealie-data:"
+        "code": "version: \"2.1\"\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM=claim-xxxxxxxxxxxxxxxxxxxx # get a fresh one from https://www.plex.tv/claim/ — expires ~4 min after being issued\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped"
       },
       {
         "language": "bash",
-        "code": "sudo docker compose -f /home/apps/mealie/docker-compose.yaml up -d"
+        "code": "bash -c \"$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/plex.sh)\""
       }
     ],
-    "markdown": "## Mealie\n\n---\n[Installation - Mealie](https://docs.mealie.io/documentation/getting-started/installation/sqlite/)\n\n---\n### Docker Compose\n\n```bash\nsudo mkdir -p /home/apps/mealie\n```\n\n```bash\ndocker volume create mealie-data\n```\n\n```bash\nsudo nano /home/apps/mealie/docker-compose.yaml\n```\n\n```yaml\nservices:\n  mealie:\n    image: ghcr.io/mealie-recipes/mealie:latest # \n    container_name: mealie\n    restart: always\n    ports:\n        - \"9925:9000\" # \n    deploy:\n      resources:\n        limits:\n          memory: 1000M # \n    networks:\n      - proxy\n    volumes:\n      - mealie-data:/app/data/\n    environment:\n      # Set Backend ENV Variables Here\n      ALLOW_SIGNUP: true\n      PUID: 1000\n      PGID: 1000\n      TZ: Europe/Riga\n      MAX_WORKERS: 1\n      WEB_CONCURRENCY: 1\n      BASE_URL: https://192.168.0.191\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.mealie.rule=Host(`mealie.local.jalubru.com`)\n      - \"traefik.http.routers.mealie.entrypoints=http\"\n      - \"traefik.http.routers.mealie.tls=true\"\n      - \"traefik.http.services.mealie.loadbalancer.server.port=9925\"\nnetworks:\n  proxy:\n    external: true\nvolumes:\n  mealie-data:\n```\n\n```bash\nsudo docker compose -f /home/apps/mealie/docker-compose.yaml up -d\n```\n\n---\n>[[00 Homelab|home]]"
+    "markdown": "## Plex\n\nMedia server for movies and TV. Runs as a native (non-Docker) install inside its own Proxmox LXC (`100`); the Raspberry Pi only hosts the supporting arr-stack/torrent tools, not Plex itself.\n\n---\n[Video - addicted2tech setup plex](https://www.youtube.com/watch?v=XudbMJ_3NRc)\n[Text - addicted2tech plex setup using docker](https://www.addictedtotech.net/install-plex-on-raspberry-pi-4-using-portainer-docker/)\n\n---\n```bash\ncd /media/wd2001ext4/apps/mediaserver/plex-config\nsudo nano docker-compose.yaml\n```\n### Docker compose \n\n>[!info] Disclaimer\n>Included in the [[Mediaserver#^mediaserver-docker-compose|Mediastack - Docker Compose]] file!\n\n```yaml\nversion: \"2.1\"\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM=claim-xxxxxxxxxxxxxxxxxxxx # get a fresh one from https://www.plex.tv/claim/ — expires ~4 min after being issued\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n```\n\nshare movie downloads to Network [[NFS Server]]\n\n---\n\n### LXC\n\n[Plex Media Server \\| Proxmox VE Helper Scripts](https://community-scripts.org/scripts/plex)\n#### Installation\n```bash\nbash -c \"$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/plex.sh)\"\n```\n\n---\n>[[00 Homelab|home]]"
   },
-  "homebox": {
-    "serviceId": "homebox",
-    "sourceFile": "HomeBox.md",
-    "title": "HomeBox",
+  "portainer-optipi": {
+    "serviceId": "portainer-optipi",
+    "sourceFile": "Portainer.md",
+    "title": "Portainer",
     "frontmatter": {
       "tags": [
-        "Homelab/Apps"
+        "Homelab/Utilities"
       ],
-      "aliases": [
-        "HomeBox"
-      ],
-      "ITname": "HomeBox",
-      "ITcategory": "Organisation",
+      "ITname": "Portainer",
+      "ITcategory": "Docker",
       "ITmachine": [
-        "OptiPi"
-      ],
-      "ITinstalltype": "docker",
-      "ITstatus": [
-        "installed"
-      ]
-    },
-    "summary": "Homebox [Video - DB Tech](https://www.youtube.com/watch?v=QwfJZ2sUDUE) [Video - Awesome Open Source](https://www.youtube.com/watch?v=XawMT0fg_To)",
-    "links": [
-      {
-        "label": "Video - DB Tech",
-        "url": "https://www.youtube.com/watch?v=QwfJZ2sUDUE"
-      },
-      {
-        "label": "Video - Awesome Open Source",
-        "url": "https://www.youtube.com/watch?v=XawMT0fg_To"
-      },
-      {
-        "label": "Quick Start - Docker-Compose",
-        "url": "https://hay-kot.github.io/homebox/quick-start/#docker-compose"
-      }
-    ],
-    "codeBlocks": [
-      {
-        "language": "bash",
-        "code": "sudo mkdir /home/apps/homebox"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /home/apps/homebox/docker-compose.yaml"
-      },
-      {
-        "language": "yml",
-        "code": "services:\n  homebox:\n    image: ghcr.io/hay-kot/homebox:latest \n    container_name: homebox\n    networks:\n      - proxy\n    environment: \n    - HBOX_LOG_LEVEL=critical \n    - HBOX_LOG_FORMAT=text\n    - HBOX_WEB_MAX_UPLOAD_SIZE=10 \n    volumes: \n    - /home/apps/homebox/data:/data/\n    ports:\n      - 3100:7745\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.homebox.rule=Host(`homebox.local.jalubru.com`)\"\n      - \"traefik.http.routers.homebox.entrypoints=https\"\n      - \"traefik.http.routers.homebox.tls=true\"\n      - \"traefik.http.services.homebox.loadbalancer.server.port=7745\"\n    restart: unless-stopped\n\nvolumes: \n  homebox-data: \n    driver: local\n\nnetworks:\n  proxy:\n    external: true"
-      },
-      {
-        "language": "bash",
-        "code": "docker compose -f /home/apps/homebox/docker-compose.yaml up -d"
-      }
-    ],
-    "markdown": "## Homebox\n\n---\n[Video - DB Tech](https://www.youtube.com/watch?v=QwfJZ2sUDUE)\n[Video - Awesome Open Source](https://www.youtube.com/watch?v=XawMT0fg_To)\n\n---\n### Installation\n[Quick Start - Docker-Compose](https://hay-kot.github.io/homebox/quick-start/#docker-compose)\n\n```bash\nsudo mkdir /home/apps/homebox\n```\n\n```bash\nsudo nano /home/apps/homebox/docker-compose.yaml\n```\n\n```yml\nservices:\n  homebox:\n    image: ghcr.io/hay-kot/homebox:latest \n    container_name: homebox\n    networks:\n      - proxy\n    environment: \n    - HBOX_LOG_LEVEL=critical \n    - HBOX_LOG_FORMAT=text\n    - HBOX_WEB_MAX_UPLOAD_SIZE=10 \n    volumes: \n    - /home/apps/homebox/data:/data/\n    ports:\n      - 3100:7745\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.homebox.rule=Host(`homebox.local.jalubru.com`)\"\n      - \"traefik.http.routers.homebox.entrypoints=https\"\n      - \"traefik.http.routers.homebox.tls=true\"\n      - \"traefik.http.services.homebox.loadbalancer.server.port=7745\"\n    restart: unless-stopped\n\nvolumes: \n  homebox-data: \n    driver: local\n\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\ndocker compose -f /home/apps/homebox/docker-compose.yaml up -d\n```\n\n---\n\n### Env Variable Options\n\n| Variable                             | Default                 | Description                                                                       |\n| ------------------------------------ | ----------------------- | --------------------------------------------------------------------------------- |\n| HBOX_MODE                            | production              | application mode used for runtime behavior can be one of: development, production |\n| HBOX_WEB_PORT                        | 7745                    | port to run the web server on, if you're using docker do not change this          |\n| HBOX_WEB_HOST                        |                         | host to run the web server on, if you're using docker do not change this          |\n| HBOX_OPTIONS_ALLOW\\_</br>REGISTRATION      | true                    | allow users to register themselves                                                |\n| HBOX_OPTIONS_AUTO\\_</br>INCREMENT_ASSET_ID | true                    | auto increments the asset_id field for new items                                  |\n| HBOX_WEB_MAX\\_</br>UPLOAD_SIZE             | 10                      | maximum file upload size supported in MB                                          |\n| HBOX_STORAGE_DATA                    | /data/                  | path to the data directory, do not change this if you're using docker             |\n| HBOX_STORAGE_SQLITE_URL              | /data/</br>homebox.db?\\_fk=1 | sqlite database url, in you're using docker do not change this                    |\n| HBOX_LOG_LEVEL                       | info                    | log level to use, can be one of: trace, debug, info, warn, error, critical        |\n| HBOX_LOG_FORMAT                      | text                    | log format to use, can be one of: text, json                                      |\n| HBOX_MAILER_HOST                     |                         | email host to use, if not set no email provider will be used                      |\n| HBOX_MAILER_PORT                     | 587                     | email port to use                                                                 |\n| HBOX_MAILER_USERNAME                 |                         | email user to use                                                                 |\n| HBOX_MAILER_PASSWORD                 |                         | email password to use                                                             |\n| HBOX_MAILER_FROM                     |                         | email from address to use                                                         |\n| HBOX_SWAGGER_HOST                    | 7745                    | swagger host to use, if not set swagger will be disabled                          |\n| HBOX_SWAGGER_SCHEMA                  | http                    | swagger schema to use, can be one of: http, https                                 |\n\n---\n[[00 Homelab|home]] | origin | source"
-  },
-  "convertx": {
-    "serviceId": "convertx",
-    "sourceFile": "ConvertX.md",
-    "title": "ConvertX",
-    "frontmatter": {
-      "tags": [
-        "Homelab/Apps"
-      ],
-      "aliases": [
-        "ConvertX"
-      ],
-      "ITname": "ConvertX",
-      "ITcategory": "Converter",
-      "ITmachine": [
-        "OptiPi"
-      ],
-      "ITinstalltype": [
-        "docker, lxc"
-      ],
-      "ITstatus": [
-        "installed"
-      ]
-    },
-    "summary": "ConvertX [GitHub - C4illin/ConvertX: Self-hosted online file converter. Supports 1000+ formats](https://github.com/C4illin/ConvertX) Docker Compose",
-    "links": [
-      {
-        "label": "GitHub - C4illin/ConvertX: Self-hosted online file converter. Supports 1000+ formats",
-        "url": "https://github.com/C4illin/ConvertX"
-      }
-    ],
-    "codeBlocks": [
-      {
-        "language": "bash",
-        "code": "sudo mkdir -p /home/server/apps/convertx"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /home/server/apps/convertx/docker-compose.yaml"
-      },
-      {
-        "language": "yaml",
-        "code": "services:\n  convertx: \n    image: ghcr.io/c4illin/convertx\n    container_name: convertx\n    restart: unless-stopped\n    ports:\n      - \"3000:3000\"\n    environment: # Defaults are listed below. All are optional.\n      - ACCOUNT_REGISTRATION=false # true or false, doesn't matter for the first account (e.g. keep this to false if you only want one account)\n      - JWT_SECRET=[REDACTED] # will use randomUUID() by default\n      - HTTP_ALLOWED=false # setting this to true is unsafe, only set this to true locally\n      - ALLOW_UNAUTHENTICATED=false # allows anyone to use the service without logging in, only set this to true locally\n      - AUTO_DELETE_EVERY_N_HOURS=24 # checks every n hours for files older then n hours and deletes them, set to 0 to disable\n    volumes:\n      - /home/server/apps/convertx:/app/data\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.convertx.rule=Host(`convertx.local.jalubru.com`)\"\n      - \"traefik.http.routers.convertx.entrypoints=https\"\n      - \"traefik.http.routers.convertx.tls=true\"\n      - \"traefik.http.services.convertx.loadbalancer.server.port=3000\"\n    networks:\n      - proxy\n\nnetworks:\n  proxy:\n    external: true"
-      },
-      {
-        "language": "bash",
-        "code": "docker compose -f /home/server/apps/convertx/docker-compose.yaml up -d"
-      }
-    ],
-    "markdown": "## ConvertX\n\n---\n[GitHub - C4illin/ConvertX: Self-hosted online file converter. Supports 1000+ formats](https://github.com/C4illin/ConvertX)\n\n---\n### Docker Compose\n\n```bash\nsudo mkdir -p /home/server/apps/convertx\n```\n\n```bash\nsudo nano /home/server/apps/convertx/docker-compose.yaml\n```\n\n```yaml\nservices:\n  convertx: \n    image: ghcr.io/c4illin/convertx\n    container_name: convertx\n    restart: unless-stopped\n    ports:\n      - \"3000:3000\"\n    environment: # Defaults are listed below. All are optional.\n      - ACCOUNT_REGISTRATION=false # true or false, doesn't matter for the first account (e.g. keep this to false if you only want one account)\n      - JWT_SECRET=[REDACTED] # will use randomUUID() by default\n      - HTTP_ALLOWED=false # setting this to true is unsafe, only set this to true locally\n      - ALLOW_UNAUTHENTICATED=false # allows anyone to use the service without logging in, only set this to true locally\n      - AUTO_DELETE_EVERY_N_HOURS=24 # checks every n hours for files older then n hours and deletes them, set to 0 to disable\n    volumes:\n      - /home/server/apps/convertx:/app/data\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.convertx.rule=Host(`convertx.local.jalubru.com`)\"\n      - \"traefik.http.routers.convertx.entrypoints=https\"\n      - \"traefik.http.routers.convertx.tls=true\"\n      - \"traefik.http.services.convertx.loadbalancer.server.port=3000\"\n    networks:\n      - proxy\n\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\ndocker compose -f /home/server/apps/convertx/docker-compose.yaml up -d\n```\n\n---\n>[[00 Homelab|home]]"
-  },
-  "it-tools": {
-    "serviceId": "it-tools",
-    "sourceFile": "IT-tools.md",
-    "title": "IT-tools",
-    "frontmatter": {
-      "tags": [
-        "Homelab/Apps"
-      ],
-      "aliases": [
-        "IT-tools"
-      ],
-      "ITname": "IT-tools",
-      "ITcategory": "Utility",
-      "ITmachine": [
-        "OptiPi"
-      ],
-      "ITinstalltype": "docker",
-      "ITstatus": [
-        "installed"
-      ],
-      "url": "ittools.local.jalubru.com"
-    },
-    "summary": "IT-Tools docker home",
-    "links": [
-      {
-        "label": "github.com/CorentinTh/it-tools",
-        "url": "https://github.com/CorentinTh/it-tools"
-      }
-    ],
-    "codeBlocks": [
-      {
-        "language": "text",
-        "code": "docker run -d --name it-tools --restart unless-stopped -p 8080:80 corentinth/it-tools:latest"
-      },
-      {
-        "language": "yaml",
-        "code": "services:\n  it-tools:\n    image: corentinth/it-tools:latest\n    container_name: it-tools\n    ports: 8080:80\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.twitchbot.rule=Host(`ittools.local.jalubru.com`)\"\n      - \"traefik.http.routers.ittools.entrypoints=https\"\n      - \"traefik.http.routers.ittools.tls=true\"\n      - \"traefik.http.services.ittools.loadbalancer.server.port=80\"\n    networks:\n      - proxy\n    restart: unless-stopped\n    pull_policy: always\n\nnetworks:\n  proxy:\n    external: true"
-      },
-      {
-        "language": "bash",
-        "code": "sudo mkdir -p /home/server/apps/ittools"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /home/server/apps/ittools/docker-compose.yaml"
-      },
-      {
-        "language": "yaml",
-        "code": "services:\n  it-tools:\n    image: corentinth/it-tools:latest\n    container_name: it-tools\n    ports: \n      - 8080:80\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.ittools.rule=Host(`ittools.local.jalubru.com`)\"\n      - \"traefik.http.routers.ittools.entrypoints=https\"\n      - \"traefik.http.routers.ittools.tls=true\"\n      - \"traefik.http.services.ittools.loadbalancer.server.port=8080\"\n    networks:\n      - proxy\n    restart: unless-stopped\n    pull_policy: always\n\nnetworks:\n  proxy:\n    external: true"
-      },
-      {
-        "language": "bash",
-        "code": "docker compose -f /home/server/apps/ittools/docker-compose.yaml up -d"
-      }
-    ],
-    "markdown": "## IT-Tools\n\n---\nhttps://github.com/CorentinTh/it-tools\n\n---\n### docker\n\n```\ndocker run -d --name it-tools --restart unless-stopped -p 8080:80 corentinth/it-tools:latest\n```\n\n```yaml\nservices:\n  it-tools:\n    image: corentinth/it-tools:latest\n    container_name: it-tools\n    ports: 8080:80\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.twitchbot.rule=Host(`ittools.local.jalubru.com`)\"\n      - \"traefik.http.routers.ittools.entrypoints=https\"\n      - \"traefik.http.routers.ittools.tls=true\"\n      - \"traefik.http.services.ittools.loadbalancer.server.port=80\"\n    networks:\n      - proxy\n    restart: unless-stopped\n    pull_policy: always\n\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\nsudo mkdir -p /home/server/apps/ittools\n```\n\n```bash\nsudo nano /home/server/apps/ittools/docker-compose.yaml\n```\n\n```yaml\nservices:\n  it-tools:\n    image: corentinth/it-tools:latest\n    container_name: it-tools\n    ports: \n      - 8080:80\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.ittools.rule=Host(`ittools.local.jalubru.com`)\"\n      - \"traefik.http.routers.ittools.entrypoints=https\"\n      - \"traefik.http.routers.ittools.tls=true\"\n      - \"traefik.http.services.ittools.loadbalancer.server.port=8080\"\n    networks:\n      - proxy\n    restart: unless-stopped\n    pull_policy: always\n\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\ndocker compose -f /home/server/apps/ittools/docker-compose.yaml up -d\n```\n\n---\n>[[00 Homelab|home]]"
-  },
-  "twitchbot": {
-    "serviceId": "twitchbot",
-    "sourceFile": "Twitch Bot.md",
-    "title": "Twitch Channel Points Miner",
-    "frontmatter": {
-      "tags": [
-        "Homelab/Bots"
-      ],
-      "ITname": "Twitch Channel Points Miner",
-      "ITcategory": "Twitch",
-      "ITmachine": [
-        "OptiPi"
+        "OptiPi",
+        "Raspberry Pi"
       ],
       "ITinstalltype": "docker",
       "ITstatus": "installed"
     },
-    "summary": "Twitch Bot [GitHub - rdavydov/Twitch-Channel-Points-Miner-v2: \\[NEW\\] A simple script that will watch a stream for you and earn the channel points. A successor of Tkd-Alex's original repo. · GitHub](https://github.com/rdavydov/Twitch-Channel-Points-Miner-v2#docker) [rdavidoff/twitch-channel-points-miner-v2 - Docker Image](https://hub.docker.com/r/rdavidoff/twitch-channel-points-miner-v2)",
+    "summary": "Portainer [Portainer Install Ubuntu tutorial - manage your docker containers](https://www.youtube.com/watch?v=ljDI5jykjE8) Installation",
     "links": [
       {
-        "label": "rdavidoff/twitch-channel-points-miner-v2 - Docker Image",
-        "url": "https://hub.docker.com/r/rdavidoff/twitch-channel-points-miner-v2"
-      },
-      {
-        "label": "Installation Guide via Portainer",
-        "url": "https://github.com/rdavydov/Twitch-Channel-Points-Miner-v2/wiki/Deploy-Docker-container-in-Portainer"
-      },
-      {
-        "label": "github.com/sffxzzp/TTVDropBot-Build/pkgs/container/ttvdropbot-build",
-        "url": "https://github.com/sffxzzp/TTVDropBot-Build/pkgs/container/ttvdropbot-build"
-      },
-      {
-        "label": "github.com/Giingu/Enhanced-TTVDropBot",
-        "url": "https://github.com/Giingu/Enhanced-TTVDropBot"
+        "label": "Portainer Install Ubuntu tutorial - manage your docker containers",
+        "url": "https://www.youtube.com/watch?v=ljDI5jykjE8"
       }
     ],
     "codeBlocks": [
       {
         "language": "bash",
-        "code": "sudo mkdir -p /home/bots/twitchbot/{analytics,cookies,logs}"
+        "code": "docker volume create portainer_data"
       },
       {
         "language": "bash",
-        "code": "sudo nano /home/bots/twitchbot/docker-compose.yaml"
+        "code": "docker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest"
       },
       {
         "language": "yaml",
-        "code": "services:\n  twitchbot:\n    image: rdavidoff/twitch-channel-points-miner-v2:latest\n    container_name: twitchbot\n    stdin_open: true\n    tty: true\n    environment:\n      - TERM=xterm-256color\n    volumes:\n      - /home/server/bots/twitchbot/analytics:/usr/src/app/analytics\n      - /home/bots/twitchbot/cookies:/usr/src/app/cookies\n      - /home/bots/twitchbot/logs:/usr/src/app/logs\n      - /home/bots/twitchbot/run.py:/usr/src/app/run.py:ro\n    ports:\n      - \"5000:5000\"\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.twitchbot.rule=Host(`twitchbot.local.jalubru.com`)\"\n      - \"traefik.http.routers.twitchbot.entrypoints=https\"\n      - \"traefik.http.routers.twitchbot.tls=true\"\n      - \"traefik.http.services.twitchbot.loadbalancer.server.port=5000\"\n    networks:\n      - proxy\n    restart: unless-stopped\n    pull_policy: always\n\nnetworks:\n  proxy:\n    external: true"
+        "code": "services:\n  portainer:\n    image: portainer/portainer-ce:latest\n    container_name: portainer\n    networks:\n      - proxy\n    ports:\n      - \"8000:8000\"\n      - \"9000:9000\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - portainer_data:/data\n    restart: always\n\nnetworks:\n  proxy:\n    external: true\n\nvolumes:\n  portainer_data:"
       },
       {
-        "language": "bash",
-        "code": "sudo docker compose -f /home/bots/twitchbot/docker-compose.yaml up -d"
+        "language": "http://192.168.0.195:9000/ ```",
+        "code": "---\n### Update\nTo update to the latest version of Portainer Server, use the following commands to stop then remove the old version. Your other applications/containers will not be removed."
       },
       {
-        "language": "bash",
-        "code": "sudo nano /home/bots/twitchbot/run.py"
+        "language": "text",
+        "code": ""
+      },
+      {
+        "language": "text",
+        "code": "Now that you have stopped and removed the old version of Portainer, you must ensure that you have the most up to date version of the image locally. You can do this with a `docker pull` command:"
+      },
+      {
+        "language": "text",
+        "code": "Finally, deploy the updated version of Portainer:"
+      },
+      {
+        "language": "text",
+        "code": "---\n\n**NOT IN USE**\n\nAfter installing [[Nginx Proxy Manager]] \n\nstop and remove the portainer"
+      },
+      {
+        "language": "text",
+        "code": ""
+      },
+      {
+        "language": "text",
+        "code": "find the proxy managers network"
+      },
+      {
+        "language": "text",
+        "code": "deploy the portainer again without opening port 9000 and with the proxy managers network"
       }
     ],
-    "markdown": "## Twitch Bot\n\n---\n[GitHub - rdavydov/Twitch-Channel-Points-Miner-v2: \\[NEW\\] A simple script that will watch a stream for you and earn the channel points. A successor of Tkd-Alex's original repo. · GitHub](https://github.com/rdavydov/Twitch-Channel-Points-Miner-v2#docker)\n[rdavidoff/twitch-channel-points-miner-v2 - Docker Image](https://hub.docker.com/r/rdavidoff/twitch-channel-points-miner-v2)\n\nhttps://github.com/sffxzzp/TTVDropBot-Build/pkgs/container/ttvdropbot-build\n(arm64 compatible fork from https://github.com/Giingu/Enhanced-TTVDropBot)\n\n---\n### Docker Compose\n\n```bash\nsudo mkdir -p /home/bots/twitchbot/{analytics,cookies,logs}\n```\n\n```bash\nsudo nano /home/bots/twitchbot/docker-compose.yaml\n```\n\n```yaml\nservices:\n  twitchbot:\n    image: rdavidoff/twitch-channel-points-miner-v2:latest\n    container_name: twitchbot\n    stdin_open: true\n    tty: true\n    environment:\n      - TERM=xterm-256color\n    volumes:\n      - /home/server/bots/twitchbot/analytics:/usr/src/app/analytics\n      - /home/bots/twitchbot/cookies:/usr/src/app/cookies\n      - /home/bots/twitchbot/logs:/usr/src/app/logs\n      - /home/bots/twitchbot/run.py:/usr/src/app/run.py:ro\n    ports:\n      - \"5000:5000\"\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.twitchbot.rule=Host(`twitchbot.local.jalubru.com`)\"\n      - \"traefik.http.routers.twitchbot.entrypoints=https\"\n      - \"traefik.http.routers.twitchbot.tls=true\"\n      - \"traefik.http.services.twitchbot.loadbalancer.server.port=5000\"\n    networks:\n      - proxy\n    restart: unless-stopped\n    pull_policy: always\n\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /home/bots/twitchbot/docker-compose.yaml up -d\n```\n\n```bash\nsudo nano /home/bots/twitchbot/run.py\n```\n\n---\n\n### run.py file\n\n[[TwitchBot-Docker-run.py#]]\n\n- - -\n### Portainer installation\n[Installation Guide via Portainer](https://github.com/rdavydov/Twitch-Channel-Points-Miner-v2/wiki/Deploy-Docker-container-in-Portainer)\n\n#### Volume Mapping\n\n| container              | host (Bind)                           |\n| ---------------------- | ------------------------------------- |\n| /usr/src/app/analytics | /home/server/bots/twitchbot/analytics |\n| /usr/src/app/cookies   | /home/server/bots/twitchbot/cookies   |\n| /usr/src/app/logs      | /home/server/bots/twitchbot/logs      |\n| /usr/src/app/run.py    | /home/server/bots/twitchbot/run.py    |\n\n---\n[[00 Homelab|home]]"
+    "markdown": "## Portainer\n\n---\n[Portainer Install Ubuntu tutorial - manage your docker containers](https://www.youtube.com/watch?v=ljDI5jykjE8)\n\n---\n\n### Installation\n\ncreate a new docker volume to store portainer data\n```bash\ndocker volume create portainer_data\n```\n\nlaunch portainer ADD NGINX NETWORK!\n```bash\ndocker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest\n```\n\n```yaml\nservices:\n  portainer:\n    image: portainer/portainer-ce:latest\n    container_name: portainer\n    networks:\n      - proxy\n    ports:\n      - \"8000:8000\"\n      - \"9000:9000\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - portainer_data:/data\n    restart: always\n\nnetworks:\n  proxy:\n    external: true\n\nvolumes:\n  portainer_data:\n```\n\nchange \"published ports\" IP\n1. go to \"Environment\"\n2. change \"Public IP\"\n\nconnect to portainer via port 9000\n```http://192.168.0.195:9000/ ```\n\n---\n### Update\nTo update to the latest version of Portainer Server, use the following commands to stop then remove the old version. Your other applications/containers will not be removed.\n\n```\ndocker stop portainer\n```\n\n```\ndocker rm portainer\n```\n\nNow that you have stopped and removed the old version of Portainer, you must ensure that you have the most up to date version of the image locally. You can do this with a `docker pull` command:\n\n```\ndocker pull portainer/portainer-ce:lts\n```\n\nFinally, deploy the updated version of Portainer:\n\n```\ndocker run -d -p 8000:8000 -p 9443:9443 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:lts\n```\n\n---\n\n**NOT IN USE**\n\nAfter installing [[Nginx Proxy Manager]] \n\nstop and remove the portainer\n```bash\ndocker stop portainer\n```\n\n```bash\ndocker rm portainer\n```\n\nfind the proxy managers network \n```bash\ndocker network ls\n```\n\ndeploy the portainer again without opening port 9000 and with the proxy managers network\n```bash\ndocker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce\n```\n\n---\n>[[00 Homelab|home]]"
   },
-  "sabnzbd": {
-    "serviceId": "sabnzbd",
-    "sourceFile": "NZB.md",
-    "title": "NZB",
+  "portainer-serverpi": {
+    "serviceId": "portainer-serverpi",
+    "sourceFile": "Portainer.md",
+    "title": "Portainer",
     "frontmatter": {
       "tags": [
-        "Homelab/Apps"
+        "Homelab/Utilities"
       ],
-      "aliases": [
-        "NZB"
-      ],
-      "ITname": "NZB",
-      "ITcategory": "Mediaserver",
+      "ITname": "Portainer",
+      "ITcategory": "Docker",
       "ITmachine": [
+        "OptiPi",
         "Raspberry Pi"
       ],
       "ITinstalltype": "docker",
-      "ITstatus": [
-        "installed"
-      ]
+      "ITstatus": "installed"
     },
-    "summary": "[!info] Disclaimer Both Torrents and NZBs are using the same Docker Compose file! NZB",
+    "summary": "Portainer [Portainer Install Ubuntu tutorial - manage your docker containers](https://www.youtube.com/watch?v=ljDI5jykjE8) Installation",
     "links": [
       {
-        "label": "Text - addictedtotech how to install nzbget docker",
-        "url": "https://www.addictedtotech.net/how-to-install-nzbget-docker-on-a-raspberry-pi-4/#How_to_install_NZBGet_Docker_on_A_Raspberry_Pi"
-      },
-      {
-        "label": "Text - addictedtotech how to install radarr with nzb on docker",
-        "url": "https://www.addictedtotech.net/how-to-install-radarr-docker-on-a-raspberry-pi-4/"
-      },
-      {
-        "label": "Text - Github - SABNZBdb",
-        "url": "https://github.com/linuxserver/docker-sabnzbd"
-      },
-      {
-        "label": "Reddit - Usenet wiki provicers",
-        "url": "https://www.reddit.com/r/usenet/wiki/providers/"
-      },
-      {
-        "label": "Reddit Provider Deals",
-        "url": "https://www.reddit.com/r/usenet/wiki/providerdeals/"
-      },
-      {
-        "label": "Reddit Indexer List",
-        "url": "https://www.reddit.com/r/usenet/wiki/indexers/"
-      },
-      {
-        "label": "www.eweka.nl/en/myeweka?p=acd",
-        "url": "https://www.eweka.nl/en/myeweka?p=acd"
-      },
-      {
-        "label": "nzbgeek.info",
-        "url": "https://nzbgeek.info"
-      },
-      {
-        "label": "nzbplanet.net",
-        "url": "https://nzbplanet.net"
-      },
-      {
-        "label": "192.168.0.195:8070",
-        "url": "http://192.168.0.195:8070"
-      }
-    ],
-    "codeBlocks": [],
-    "markdown": "## NZB\n\n---\n[Text - addictedtotech how to install nzbget docker](https://www.addictedtotech.net/how-to-install-nzbget-docker-on-a-raspberry-pi-4/#How_to_install_NZBGet_Docker_on_A_Raspberry_Pi)\n[Text - addictedtotech how to install radarr with nzb on docker](https://www.addictedtotech.net/how-to-install-radarr-docker-on-a-raspberry-pi-4/)\n[Text - Github - SABNZBdb](https://github.com/linuxserver/docker-sabnzbd)\n\n---\n### Accounts\n[[Usenet]]\n\n>[!info] Disclaimer\n>Both [[Torrent|Torrents]] and [[NZB|NZBs]] are using the same [[Mediaserver#|Docker Compose]] file!\n\n---\n[Reddit - Usenet wiki provicers](https://www.reddit.com/r/usenet/wiki/providers/), [Reddit Provider Deals](https://www.reddit.com/r/usenet/wiki/providerdeals/))\n- [[Usenet#Eweka|Eweka Account Details]]: https://www.eweka.nl/en/myeweka?p=acd (50€ anually)\n\nIndexer: ([Reddit Indexer List](https://www.reddit.com/r/usenet/wiki/indexers/))\n- [[Usenet#NBZGeek|nzbgeek Account]]: https://nzbgeek.info (80€ lifetime)\n- [[Usenet#NzbPlanet|NzbPlanet Account]]: https://nzbplanet.net (45€ lifetime)\n\n#### Configure SABnzbd\n- Open SABnzbd at http://192.168.0.195:8070\n- Sorting? Handled by Sonarr, Radarr?\n\n---\n>[[00 Homelab|home]] | [[Mediaserver|mediaserver]]"
-  },
-  "qbittorrent": {
-    "serviceId": "qbittorrent",
-    "sourceFile": "Torrent.md",
-    "title": "Torrent",
-    "frontmatter": {
-      "tags": [
-        "Homelab/Apps"
-      ],
-      "aliases": [
-        "Torrent"
-      ],
-      "ITname": [
-        "Torrent",
-        "qbittorrent"
-      ],
-      "ITcategory": "Mediaserver",
-      "ITmachine": [
-        "Raspberry Pi"
-      ],
-      "ITinstalltype": "docker",
-      "ITstatus": [
-        "installed"
-      ]
-    },
-    "summary": "[!info] Disclaimer Both Torrents and NZBs are using the same Docker Compose file! Torrent",
-    "links": [
-      {
-        "label": "Text - github media-stack",
-        "url": "https://github.com/navilg/media-stack"
-      },
-      {
-        "label": "192.168.0.195:5080",
-        "url": "http://192.168.0.195:5080"
-      },
-      {
-        "label": "qbittorrent:5080/",
-        "url": "http://qbittorrent:5080/"
-      },
-      {
-        "label": "vpn:5080/",
-        "url": "http://vpn:5080/"
-      },
-      {
-        "label": "qbittorrent:5080",
-        "url": "http://qbittorrent:5080"
-      },
-      {
-        "label": "vpn:5080",
-        "url": "http://vpn:5080"
+        "label": "Portainer Install Ubuntu tutorial - manage your docker containers",
+        "url": "https://www.youtube.com/watch?v=ljDI5jykjE8"
       }
     ],
     "codeBlocks": [
       {
         "language": "bash",
-        "code": "docker network create mediastack"
+        "code": "docker volume create portainer_data"
       },
       {
         "language": "bash",
-        "code": "VPN_SERVICE_PROVIDER=nordvpn OPENVPN_USER=[REDACTED] OPENVPN_PASSWORD=[REDACTED] SERVER_COUNTRIES=Switzerland docker compose --profile vpn up -d\n\n## docker compose -f docker-compose-nginx.yml up -d # OPTIONAL to use Nginx as reverse proxy"
+        "code": "docker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest"
       },
       {
-        "language": "bash",
-        "code": "docker compose up -d\n## docker compose -f docker-compose-nginx.yml up -d # OPTIONAL to use Nginx as reverse proxy"
+        "language": "yaml",
+        "code": "services:\n  portainer:\n    image: portainer/portainer-ce:latest\n    container_name: portainer\n    networks:\n      - proxy\n    ports:\n      - \"8000:8000\"\n      - \"9000:9000\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - portainer_data:/data\n    restart: always\n\nnetworks:\n  proxy:\n    external: true\n\nvolumes:\n  portainer_data:"
       },
       {
-        "language": "bash",
-        "code": "docker exec -it qbittorrent bash # Get inside qBittorrent container\n\n## Above command will get you inside qBittorrent interactive terminal, Run below command in qbt terminal\nmkdir /downloads/movies /downloads/tvshows\nchown 1000:1000 /downloads/movies /downloads/tvshows"
+        "language": "http://192.168.0.195:9000/ ```",
+        "code": "---\n### Update\nTo update to the latest version of Portainer Server, use the following commands to stop then remove the old version. Your other applications/containers will not be removed."
       },
       {
         "language": "text",
-        "code": "location /qbt/ {\n    proxy_pass         http://qbittorrent:5080/; # Comment this line if VPN is enabled.\n    # proxy_pass         http://vpn:5080/; # Uncomment this line if VPN is enabled.\n    proxy_http_version 1.1;\n\n    proxy_set_header   Host               http://qbittorrent:5080; # Comment this line if VPN is enabled.\n    # proxy_set_header   Host               http://vpn:5080; # Uncomment this line if VPN is enabled.\n    proxy_set_header   X-Forwarded-Host   $http_host;\n    proxy_set_header   X-Forwarded-For    $remote_addr;\n    proxy_cookie_path  /                  \"/; Secure\";\n}"
+        "code": ""
+      },
+      {
+        "language": "text",
+        "code": "Now that you have stopped and removed the old version of Portainer, you must ensure that you have the most up to date version of the image locally. You can do this with a `docker pull` command:"
+      },
+      {
+        "language": "text",
+        "code": "Finally, deploy the updated version of Portainer:"
+      },
+      {
+        "language": "text",
+        "code": "---\n\n**NOT IN USE**\n\nAfter installing [[Nginx Proxy Manager]] \n\nstop and remove the portainer"
+      },
+      {
+        "language": "text",
+        "code": ""
+      },
+      {
+        "language": "text",
+        "code": "find the proxy managers network"
+      },
+      {
+        "language": "text",
+        "code": "deploy the portainer again without opening port 9000 and with the proxy managers network"
       }
     ],
-    "markdown": "# Torrent\n\n---\n[Text - github media-stack](https://github.com/navilg/media-stack)\n\n---\n>[!info] Disclaimer\n>Both [[Torrent|Torrents]] and [[NZB|NZBs]] are using the same [[Mediaserver#|Docker Compose]] file!\n### Docker Compose\n\ncd /media/wd2001ext4/apps/mediaserver\nsudo nano docker-compose.yaml\n\nMediaserver#\n\n---\n\n### media-stack\n\nA stack of self-hosted media managers and streamer along with VPN. \n\nStack include VPN, Radarr, Sonarr, Prowlarr, qBittorrent and Jellyfin.\n\n#### Requirements\n\n- Docker version 24.0.5 and above\n- Docker compose version v2.20.2 and above\n- It may also work on some of lower versions, but its not tested.\n\n#### Install media stack\n\nThere are two ways this stack can be deployed.\n\n1. With a VPN (Recommended)\n2. Without a VPN\n\nBefore we deploy the stack, We must create docker network first\n\n```bash\ndocker network create mediastack\n```\n\n**Deploy the stack with VPN**\n\nIf VPN is enabled, qBittorrent and Prowlarr will be put behind VPN.\n\nBy default, NordVPN is configured in `docker-compose.yml` file. This can be updated to use ExpressVPN, SurfShark, Custom OpenVPN or Wireguard VPN. It uses OpenVPN type for all the providers. \n\nCheck respective document of your VPN provider to generate OpenVPN username and password.\n\nBy default, VPN is disabled in `docker-compose.yml`. We just need comment and uncomment few lines in `docker-compose.yml` file to enable and use VPN. Go through the comment messages in `docker-compose.yml` file to update them accordingly. Its very well guided in the compose file itself.\n\nUpdate the `docker-compose.yml` file as guided in comment messsage in same file and follow below commands to deploy the stack.\n\nTo deploy the stack with VPN (with nordvpn):\n\n```bash\nVPN_SERVICE_PROVIDER=nordvpn OPENVPN_USER=[REDACTED] OPENVPN_PASSWORD=[REDACTED] SERVER_COUNTRIES=Switzerland docker compose --profile vpn up -d\n\n## docker compose -f docker-compose-nginx.yml up -d # OPTIONAL to use Nginx as reverse proxy\n```\n\n**Deploy the stack without VPN**\n\nTo deploy the stack with without VPN (highly discouraged), Run below command.\n\n```bash\ndocker compose up -d\n## docker compose -f docker-compose-nginx.yml up -d # OPTIONAL to use Nginx as reverse proxy\n```\n\n---\n### Configuration\n#### Configure qBittorrent\n\n- Open qBitTorrent at http://192.168.0.195:5080. Default username:password is admin:adminadmin\n- Go to Tools --> Options --> WebUI --> Change password\n- Run below commands on the server\n\n```bash\ndocker exec -it qbittorrent bash # Get inside qBittorrent container\n\n## Above command will get you inside qBittorrent interactive terminal, Run below command in qbt terminal\nmkdir /downloads/movies /downloads/tvshows\nchown 1000:1000 /downloads/movies /downloads/tvshows\n```\n### Nginx Configuration\n\n- Get inside Nginx container\n- `cd /etc/nginx/conf.d`\n- Add proxies for all tools.\n\n`docker cp nginx.conf nginx:/etc/nginx/conf.d/default.conf && docker exec -it nginx nginx -s reload`\n- Close ports of other tools in firewall/security groups except port 80 and 443.\n\n#### Apply SSL in Nginx\n\n- Open port 80 and 443.\n- Get inside Nginx container and install certbot and certbot-nginx `apk add certbot certbot-nginx`\n- Add URL in server block. e.g. `server_name  localhost armdev.navratangupta.in;` in /etc/nginx/conf.d/default.conf\n- Run `certbot --nginx` and provide details asked.\n\n#### qBittorrent Nginx proxy\n\n```\nlocation /qbt/ {\n    proxy_pass         http://qbittorrent:5080/; # Comment this line if VPN is enabled.\n    # proxy_pass         http://vpn:5080/; # Uncomment this line if VPN is enabled.\n    proxy_http_version 1.1;\n\n    proxy_set_header   Host               http://qbittorrent:5080; # Comment this line if VPN is enabled.\n    # proxy_set_header   Host               http://vpn:5080; # Uncomment this line if VPN is enabled.\n    proxy_set_header   X-Forwarded-Host   $http_host;\n    proxy_set_header   X-Forwarded-For    $remote_addr;\n    proxy_cookie_path  /                  \"/; Secure\";\n}\n```\n\n**Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n\n---\n>[[00 Homelab|home]] | [[Mediaserver|mediaserver]]"
+    "markdown": "## Portainer\n\n---\n[Portainer Install Ubuntu tutorial - manage your docker containers](https://www.youtube.com/watch?v=ljDI5jykjE8)\n\n---\n\n### Installation\n\ncreate a new docker volume to store portainer data\n```bash\ndocker volume create portainer_data\n```\n\nlaunch portainer ADD NGINX NETWORK!\n```bash\ndocker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest\n```\n\n```yaml\nservices:\n  portainer:\n    image: portainer/portainer-ce:latest\n    container_name: portainer\n    networks:\n      - proxy\n    ports:\n      - \"8000:8000\"\n      - \"9000:9000\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - portainer_data:/data\n    restart: always\n\nnetworks:\n  proxy:\n    external: true\n\nvolumes:\n  portainer_data:\n```\n\nchange \"published ports\" IP\n1. go to \"Environment\"\n2. change \"Public IP\"\n\nconnect to portainer via port 9000\n```http://192.168.0.195:9000/ ```\n\n---\n### Update\nTo update to the latest version of Portainer Server, use the following commands to stop then remove the old version. Your other applications/containers will not be removed.\n\n```\ndocker stop portainer\n```\n\n```\ndocker rm portainer\n```\n\nNow that you have stopped and removed the old version of Portainer, you must ensure that you have the most up to date version of the image locally. You can do this with a `docker pull` command:\n\n```\ndocker pull portainer/portainer-ce:lts\n```\n\nFinally, deploy the updated version of Portainer:\n\n```\ndocker run -d -p 8000:8000 -p 9443:9443 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:lts\n```\n\n---\n\n**NOT IN USE**\n\nAfter installing [[Nginx Proxy Manager]] \n\nstop and remove the portainer\n```bash\ndocker stop portainer\n```\n\n```bash\ndocker rm portainer\n```\n\nfind the proxy managers network \n```bash\ndocker network ls\n```\n\ndeploy the portainer again without opening port 9000 and with the proxy managers network\n```bash\ndocker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce\n```\n\n---\n>[[00 Homelab|home]]"
   },
-  "mediaserver": {
-    "serviceId": "mediaserver",
+  "prowlarr": {
+    "serviceId": "prowlarr",
     "sourceFile": "Mediaserver.md",
-    "title": "Mediaserver",
+    "title": "Plex & Co.",
     "frontmatter": {
       "tags": [
         "Homelab/Apps"
@@ -1176,6 +1359,187 @@ export const serviceDocs = {
       }
     ],
     "markdown": "## Mediaserver\n- [[Torrent|Torrent]] - qBitTorrent Setup\n- [[NZB|NZB]] - SABnzb Setup\n\n---\n### Docker Compose\n\n```bash\ndocker network create mediastack\nsudo mkdir -p /media/wd2001ext4/apps/mediaserver/{plex-config,tautulli-config,plex-logs,radarr-config,sonarr-config,prowlarr-config,bazarr-config,qbittorrent-config,sabnzbd-config}\n```\n\n```bash\nsudo nano /media/wd2001ext4/apps/mediaserver/docker-compose.yaml\n```\n\n```yaml\nname: media-stack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\n  ## Default credentials of qBittorrent - Username: admin password: adminadmin ##\n  ## Change password after install from UI --> Tools --> Options --> WebUI ##\n  qbittorrent:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    # image: lscr.io/linuxserver/qbittorrent:4.5.4 older version\n    container_name: qbittorrent\n    # Unomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # Comment below lines if VPN is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    # Unomment below line if vpn is enabled\n    # network_mode: service:vpn\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - WEBUI_PORT=5080\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/qbittorrent-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ## Comment/Disable below ports if VPN is enabled\n    ports:\n      - 5080:5080\n      - 6881:6881\n      - 6881:6881/udp\n    restart: unless-stopped\n    pull_policy: always\n\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    # image: lscr.io/linuxserver/radarr:4.7.5 older version\n    container_name: radarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    ports:\n      - 7878:7878\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/radarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    restart: unless-stopped\n    pull_policy: always\n\n  sonarr:\n    image: linuxserver/sonarr:latest #using v4 instead of v3\n##    image: linuxserver/sonarr:4.0.0-develop\n    container_name: sonarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sonarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ports:\n      - 8989:8989\n    restart: unless-stopped\n    pull_policy: always\n\n  prowlarr:\n    image: linuxserver/prowlarr:latest\n    container_name: prowlarr\n    # Uncomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # network_mode: service:vpn # Uncomment this line if vpn is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/prowlarr-config:/config\n    # Comment below ports if VPN is enabled.\n    ports:\n      - 9696:9696\n    restart: unless-stopped\n    pull_policy: always\n\n## Subtitel Manager and Downloader\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: bazarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/bazarr-config:/config\n      - /media/wd2001ext4/media/downloads/movies:/movies\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n    ports:\n      - 6767:6767\n    restart: unless-stopped\n    pull_policy: always\n\n## NZB Provider\n  sabnzbd:\n    image: lscr.io/linuxserver/sabnzbd:latest\n    container_name: sabnzbd\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sabnzbd-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n      - /media/wd2001ext4/media/incomplete-downloads:/incomplete-downloads\n    ports:\n      - 8070:8080\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n  radarr-config:\n  sonarr-config:\n  prowlarr-config:\n  bazarr-config:\n  qbittorrent-config:\n  sabnzbd-config:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /media/wd2001ext4/apps/mediaserver/docker-compose.yaml up -d\n```\n\n---\n#### Optiplex\n```bash\ndocker network create mediastack\n```\n\n```bash\nsudo mkdir /mediaserver\nsudo nano /mediaserver/docker-compose.yaml\n```\n\nalso included is [[Overseerr]]\n\n```yaml\nname: mediastack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /mnt/media/wd2001ext4/media/downloads/tvshows:/tv\n      - /mnt/media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /mediaserver/docker-compose.yaml up -d\n```\n---\n##### Unused:\n\n```yaml\n  # To use/enable VPN, Run this compose file with --profile=vpn. Its highly recommended to use VPN.\n  vpn:\n  ## Read https://github.com/qdm12/gluetun/wiki for details on configuring VPN for different service providers.\n    profiles: [\"vpn\"]\n    container_name: vpn\n    image: qmcgaw/gluetun:v3.35.0\n    cap_add:\n      - NET_ADMIN\n    environment:\n      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-nordvpn} # Valid values: nordvpn, expressvpn, protonvpn, surfshark or custom\n      - OPENVPN_USER=[REDACTED]\n      - OPENVPN_PASSWORD=[REDACTED]\n\n      ## For list of server countries, visit https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json\n\n      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-Latvia}\n    \n      # - FREE_ONLY=on  # Valid with protonvpn only. Value willbe set \"on\" if using free subscription provided by protonvpn\n\n      ## Enable below if VPN_SERVICE_PROVIDER=custom\n      # - VPN_TYPE=openvpn # or wireguard. \n\n      ## If VPN_TYPE is openvpn\n      # - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf\n\n      ## If VPN_TYPE is wireguard. Replace below env variables as required.\n      # - VPN_ENDPOINT_IP=1.2.3.4                                               # Replace with your wg endpoint ip or domain\n      # - VPN_ENDPOINT_PORT=51820                                               # Replace with wg server port\n      # - WIREGUARD_PUBLIC_KEY=[REDACTED]     # Replace with your wg public key\n      # - WIREGUARD_PRIVATE_KEY=[REDACTED]    # Replace with your wg client private key\n      # - WIREGUARD_PRESHARED_KEY=[REDACTED]  # Replaced with your wg pre-shared key\n      # - WIREGUARD_ADDRESSES=\"10.64.222.21/32\"                                 # Replace with wg address\n\n    ## Enable volume if VPN_SERVICE_PROVIDER=custom and VPN_TYPE=openvpn is used\n    # volumes:\n      # - /yourpath/yourconfig.conf:/gluetun/config.conf:ro\n\n    networks:\n      - mediastack\n    \n    # Uncomment/enable below ports if VPN is used/enabled\n    # ports:\n    #   # qbittorrent ports\n    #   - 5080:5080\n    #   - 6881:6881\n    #   - 6881:6881/udp\n    #   # prowlarr ports\n    #   - 9696:9696\n    restart: \"unless-stopped\"\n\n  jellyfin:\n    image: linuxserver/jellyfin:latest\n    container_name: jellyfin\n    # image: linuxserver/jellyfin:10.8.10 - old image\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/jellyfin-config:/config\n      - /media/wd2001ext4/media/downloads:/data\n  # devices:\n  #  - /dev/videoN:/dev/videoN # Mount GPU device \n    ports:\n      - 8096:8096\n      - 7359:7359/udp\n      - 8920:8920\n    restart: unless-stopped\n\n## Jellyfin stats\n  embystat:\n    image: lscr.io/linuxserver/embystat:latest\n    container_name: embystat\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/embystat-config:/config\n    ports:\n      - 6555:6555\n    restart: unless-stopped\n\n  cleanmyarr:\n    depends_on:\n      - radarr\n      - sonarr\n    image: linuxshots/cleanmyarr:0.4.1-beta\n    container_name: cleanmyarr\n    networks:\n      - mediastack\n      - proxy\n    volumes:\n      - cleanmyarr-config:/config\n    restart: unless-stopped\n  \nvolumes:\n  jellyfin-config:\n  embystat-config:\n  sabnzbd-config:\n  cleanmyarr-config:\n```\n\n---\n### Configuration\n\n#### Configure Plex\n\n- Open Plex at http://192.168.0.195:32400/web\n- Configure as it asks for the first time adding /tvshows and /movies\n\n#### Configure Tautulli\n\n- Open Tautulli at http://192.168.0.195:8181\n\n#### Configure Jellyfin\n\n- Open Jellyfin at http://192.168.0.195:8096\n- Configure as it asks for first time.\n- Add media library folder and choose /data/movies/\n\n#### Configure EmbyStat\n\n- Open EmbyStat at http://192.168.0.195:6555\n- Configure as it asks for first time.\n- Server: at 172.25.0.4 URL: https://jellyfin.jalubru.duckdns.org\n- API: [Jellyfin API](https://jellyfin.jalubru.duckdns.org/web/index.html#!/apikeys.html)\n\n#### Configure Radarr\n\n- Open Radarr at http://192.168.0.195:7878\n- Settings --> Media Management --> Check mark \"Movies deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a movie** (After Prowlarr is configured)\n\n- Movies --> Search for a movie --> Add Root folder (/downloads) --> Quality profile --> Add movie\n- Go to qBittorrent (http://192.168.0.195:5080) and see if movie is getting downloaded.\n\n#### Configure Sonarr\n\n- Open Sonarr at http://192.168.0.195:8989\n- Settings --> Media Management --> Check mark \"Shows deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a show** (After Prowlarr is configured)\n\n- Shows --> Search for a show --> Add Root folder (/downloads) --> Quality profile --> Add show\n- Go to qBittorrent (http://192.168.0.195:5080) and see if show is getting downloaded.\n\n#### Configure Prowlarr\n\n- Open Prowlarr at http://192.168.0.195:9696\n- Settings --> General --> Authentications --> Select Authentication and add username and password\n- Add Indexers, Indexers --> Add Indexer --> Search for indexer --> Choose base URL --> Test and Save\n- Add application, Settings --> Apps --> Add application --> Choose Sonarr or Radarr or any apps to link --> Prowlarr server (http://192.168.0.195:9696) --> Radarr (http://192.168.0.195:7878) or Sonarr (http://192.168.0.195:8989)--> API Key --> Test and Save\n- This will add indexers in respective apps automatically.\n\n#### Configure Bazarr\nhttps://wiki.bazarr.media\n\n- Open Bazarr at http://192.168.0.195:6767\n- Go to Settings -->Sonarr or Radarr --> Address: 192.168.0.195, \n- Create Account at https://www.opensubtitles.org, https://www.opensubtitles.com, \n\n---\n### Nginx Configuration\n\n- Get inside Nginx container\n- `cd /etc/nginx/conf.d`\n- Add proxies for all tools.\n\n`docker cp nginx.conf nginx:/etc/nginx/conf.d/default.conf && docker exec -it nginx nginx -s reload`\n- Close ports of other tools in firewall/security groups except port 80 and 443.\n\n#### Apply SSL in Nginx\n\n- Open port 80 and 443.\n- Get inside Nginx container and install certbot and certbot-nginx `apk add certbot certbot-nginx`\n- Add URL in server block. e.g. `server_name  localhost armdev.navratangupta.in;` in /etc/nginx/conf.d/default.conf\n- Run `certbot --nginx` and provide details asked.\n\n#### Jellyfin Nginx proxy\n\n- Add base URL, Admin Dashboard -> Networking -> Base URL (/jellyfin)\n- Add below config in Ngix config\n\n```\n location /jellyfin {\n        return 302 $scheme://$host/jellyfin/;\n    }\n\n    location /jellyfin/ {\n\n        proxy_pass http://jellyfin:8096/jellyfin/;\n\n        proxy_pass_request_headers on;\n\n        proxy_set_header Host $host;\n\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Forwarded-Host $http_host;\n\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection $http_connection;\n\n        # Disable buffering when the nginx proxy gets very resource heavy upon streaming\n        proxy_buffering off;\n    }\n```\n\n- Restart containers\n\n#### Radarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/radarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://radarr:7878;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n#### Sonarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/sonarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://sonarr:8989;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n#### Prowlarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/prowlarr)\n- Add below proxy in nginx configuration\n\nThis may need to change configurations in indexers and base in URL.\n\n```\nlocation /prowlarr {\n    proxy_pass http://prowlarr:9696; # Comment this line if VPN is enabled.\n    # proxy_pass http://vpn:9696; # Uncomment this line if VPN is enabled.\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n**Note: If VPN is enabled, then Prowlarr is reachable on vpn's service name**\n\n---\n>[[00 Homelab|home]]"
+  },
+  "proxmox": {
+    "serviceId": "proxmox",
+    "sourceFile": "Proxmox.md",
+    "title": "Proxmox",
+    "frontmatter": {
+      "tags": [
+        "Homelab/Apps"
+      ],
+      "aliases": [
+        "Proxmox"
+      ],
+      "ITname": "Proxmox",
+      "ITcategory": "Virtualiser",
+      "ITmachine": [
+        "OptiPi"
+      ],
+      "ITinstalltype": "script",
+      "ITstatus": [
+        "installed"
+      ],
+      "comments": "Type-1 hypervisor — hosts the Plex/Docker/Pi-hole LXCs and the Home Assistant VM",
+      "url": [
+        "https://192.168.0.192:8006",
+        "https://proxmox.local.jalubru.com"
+      ]
+    },
+    "summary": "Proxmox Proxmox Bare-metal type-1 hypervisor running on the Dell OptiPlex (`optipi`). Everything else in the homelab except the Raspberry Pi lives on top of this as an LXC or VM. [Proxmox VE Downloads](https://www.proxmo",
+    "links": [
+      {
+        "label": "Proxmox VE Downloads",
+        "url": "https://www.proxmox.com/en/downloads"
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "# Download the current Proxmox VE ISO and flash it (e.g. with Balena Etcher or dd)\n# https://www.proxmox.com/en/downloads"
+      },
+      {
+        "language": "bash",
+        "code": "pct create <CTID> local:vztmpl/debian-12-standard_*.tar.zst \\\n  --hostname <name> \\\n  --net0 name=eth0,bridge=vmbr0,ip=dhcp \\\n  --rootfs local-lvm:8 \\\n  --unprivileged 1"
+      }
+    ],
+    "markdown": "## Proxmox\n\nBare-metal type-1 hypervisor running on the Dell OptiPlex (`optipi`). Everything else in the homelab except the Raspberry Pi lives on top of this as an LXC or VM.\n\n---\n[Proxmox VE Downloads](https://www.proxmox.com/en/downloads)\n\n---\n### Current guests\n\n| ID | Name | Type | Notes |\n| --- | --- | --- | --- |\n| 100 | `plex` | LXC | Native (non-Docker) [[Plex]] install, `192.168.0.16` |\n| 101 | `docker` | LXC | Docker host for OptiPi apps ([[Traefik]], [[Portainer]], etc.), `192.168.0.191` |\n| 102 | `pihole` | LXC | [[Pi-Hole]], `192.168.0.190` |\n| 103 | `Win11` | VM | Last known stopped |\n| 104 | Home Assistant | VM | HA OS appliance, `192.168.0.193` — see [[Homeassistant]] |\n\n### Installation\n\nInstalled via the standard Proxmox VE ISO installer on bare metal — no automation/script used for the initial install.\n\n```bash\n# Download the current Proxmox VE ISO and flash it (e.g. with Balena Etcher or dd)\n# https://www.proxmox.com/en/downloads\n```\n\nBoot the OptiPlex from the USB installer and follow the graphical installer (target disk, timezone, root password, network config for `vmbr0`). After install, log in at `https://192.168.0.192:8006` with the root credentials set during install.\n\n#### Creating an LXC (used for Plex/Docker/Pi-hole above)\n\nDatacenter → node → **Create CT**, or from the shell:\n\n```bash\npct create <CTID> local:vztmpl/debian-12-standard_*.tar.zst \\\n  --hostname <name> \\\n  --net0 name=eth0,bridge=vmbr0,ip=dhcp \\\n  --rootfs local-lvm:8 \\\n  --unprivileged 1\n```\n\n#### API tokens\n\nUsed by [[jaludash]] to read node/VM/LXC stats: **Datacenter → Permissions → API Tokens** → create a token scoped to a role with read access (e.g. `PVEAuditor`).\n\n\n---\n[[00 Apps|home]] | | source"
+  },
+  "pullmd": {
+    "serviceId": "pullmd",
+    "sourceFile": "PullMD.md",
+    "title": "PullMD",
+    "frontmatter": {
+      "tags": [
+        "Homelab/Apps"
+      ],
+      "aliases": [
+        "PullMD"
+      ],
+      "ITname": "PullMD",
+      "ITcategory": "Converter",
+      "ITmachine": [
+        "OptiPi"
+      ],
+      "ITinstalltype": "docker",
+      "ITstatus": [
+        "installed"
+      ],
+      "comments": "Self-hosted URL/file-to-Markdown service with REST + MCP API",
+      "url": [
+        "http://192.168.0.191:3000",
+        "https://pullmd.local.jalubru.com"
+      ]
+    },
+    "summary": "PullMD PullMD Self-hosted URL- and file-to-Markdown service for humans and AI agents — converts web pages, documents, images, audio, and YouTube videos to clean Markdown. Ships as a PWA + REST API + MCP server, with Redd",
+    "links": [
+      {
+        "label": "GitHub - AeternaLabsHQ/pullmd",
+        "url": "https://github.com/AeternaLabsHQ/pullmd"
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "sudo mkdir -p /home/apps/pullmd\ncd /home/apps/pullmd"
+      },
+      {
+        "language": "bash",
+        "code": "sudo nano /home/apps/pullmd/.env"
+      },
+      {
+        "language": "bash",
+        "code": "PORT=3000\nPUBLIC_URL=https://pullmd.local.jalubru.com\n# Optional: vision/STT/LLM tiers, Reddit API creds, auth mode, etc. — see README for the full list.\nPULLMD_AUTH_MODE=disabled"
+      },
+      {
+        "language": "bash",
+        "code": "sudo nano /home/apps/pullmd/docker-compose.yml"
+      },
+      {
+        "language": "yaml",
+        "code": "services:\n  pullmd:\n    image: aeternalabshq/pullmd:latest\n    container_name: pullmd\n    restart: unless-stopped\n    ports:\n      - \"${PORT:-3000}:3000\"\n    environment:\n      - PUBLIC_URL=${PUBLIC_URL:-http://localhost:${PORT:-3000}}\n      - TRAFILATURA_URL=http://trafilatura:8001/extract\n      - PLAYWRIGHT_URL=http://playwright:8002/render\n      - MARKITDOWN_URL=http://markitdown:8003/convert\n      - MARKITDOWN_YOUTUBE=${MARKITDOWN_YOUTUBE:-}\n      - PULLMD_VISION_API_KEY=${PULLMD_VISION_API_KEY:-}\n      - PULLMD_VISION_BASE_URL=${PULLMD_VISION_BASE_URL:-}\n      - PULLMD_VISION_MODEL=${PULLMD_VISION_MODEL:-}\n      - PULLMD_STT_API_KEY=${PULLMD_STT_API_KEY:-}\n      - PULLMD_STT_BASE_URL=${PULLMD_STT_BASE_URL:-}\n      - PULLMD_STT_MODEL=${PULLMD_STT_MODEL:-}\n      - PULLMD_LLM_API_KEY=${PULLMD_LLM_API_KEY:-}\n      - PULLMD_LLM_BASE_URL=${PULLMD_LLM_BASE_URL:-}\n      - PULLMD_PDF_OCR_API_KEY=${PULLMD_PDF_OCR_API_KEY:-}\n      - PULLMD_PDF_OCR_BASE_URL=${PULLMD_PDF_OCR_BASE_URL:-}\n      - PULLMD_PDF_OCR_MODEL=${PULLMD_PDF_OCR_MODEL:-}\n      - PULLMD_SOURCE_HEADER=${PULLMD_SOURCE_HEADER:-}\n      - PULLMD_FRONTMATTER_FIELDS=${PULLMD_FRONTMATTER_FIELDS:-}\n      - PULLMD_USER_AGENT=${PULLMD_USER_AGENT:-}\n      - PULLMD_UA_FEED_URL=${PULLMD_UA_FEED_URL:-}\n      - PULLMD_SITE_RECIPES=${PULLMD_SITE_RECIPES:-}\n      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID:-}\n      - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET:-}\n      - REDDIT_USER_AGENT=${REDDIT_USER_AGENT:-}\n      - DISABLE_PUBLIC_HISTORY=${DISABLE_PUBLIC_HISTORY:-false}\n      - PULLMD_AUTH_MODE=${PULLMD_AUTH_MODE:-disabled}\n      - PULLMD_ADMIN_EMAIL=${PULLMD_ADMIN_EMAIL:-}\n      - PULLMD_ADMIN_PASSWORD=${PULLMD_ADMIN_PASSWORD:-}\n      - PULLMD_AUTH_TOKEN=${PULLMD_AUTH_TOKEN:-}\n      - OAUTH_JWT_SECRET=${OAUTH_JWT_SECRET:-}\n      - CACHE_DB=/data/cache.db\n    volumes:\n      - ./data:/data\n    networks:\n      - pullmd-internal\n      - proxy\n    depends_on:\n      - trafilatura\n      - playwright\n      - markitdown\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.pullmd.rule=Host(`pullmd.local.jalubru.com`)\"\n      - \"traefik.http.routers.pullmd.entrypoints=https\"\n      - \"traefik.http.routers.pullmd.tls=true\"\n      - \"traefik.http.services.pullmd.loadbalancer.server.port=3000\"\n\n  trafilatura:\n    image: aeternalabshq/pullmd-trafilatura:latest\n    container_name: pullmd-trafilatura\n    restart: unless-stopped\n    networks:\n      - pullmd-internal\n\n  playwright:\n    image: aeternalabshq/pullmd-playwright:latest\n    container_name: pullmd-playwright\n    restart: unless-stopped\n    networks:\n      - pullmd-internal\n\n  markitdown:\n    image: aeternalabshq/pullmd-markitdown:latest\n    container_name: pullmd-markitdown\n    restart: unless-stopped\n    mem_limit: ${MARKITDOWN_MEM_LIMIT:-1g}\n    environment:\n      - MARKITDOWN_YT_TIMECODES=${MARKITDOWN_YT_TIMECODES:-links}\n      - MARKITDOWN_YT_CHUNK=${MARKITDOWN_YT_CHUNK:-30}\n      - MARKITDOWN_YT_LANGS=${MARKITDOWN_YT_LANGS:-}\n      - MARKITDOWN_YT_PROXY=${MARKITDOWN_YT_PROXY:-}\n      - MARKITDOWN_CONVERT_TIMEOUT=${MARKITDOWN_CONVERT_TIMEOUT:-60}\n      - MARKITDOWN_MEM_LIMIT_MB=${MARKITDOWN_MEM_LIMIT_MB:-0}\n    networks:\n      - pullmd-internal\n\nnetworks:\n  pullmd-internal:\n    driver: bridge\n  proxy:\n    external: true"
+      },
+      {
+        "language": "bash",
+        "code": "docker compose -f /home/apps/pullmd/docker-compose.yml up -d"
+      }
+    ],
+    "markdown": "## PullMD\n\nSelf-hosted URL- and file-to-Markdown service for humans and AI agents — converts web pages, documents, images, audio, and YouTube videos to clean Markdown. Ships as a PWA + REST API + MCP server, with Reddit-aware extraction and refreshable share links.\n\n---\n[GitHub - AeternaLabsHQ/pullmd](https://github.com/AeternaLabsHQ/pullmd)\n\n---\n### Stack\n\nMain service plus three internal sidecars (no ports published, reached only via the internal `pullmd-internal` network):\n\n| Container | Role |\n| --- | --- |\n| `pullmd` | Main app / API, port `3000` |\n| `pullmd-trafilatura` | Web page text extraction |\n| `pullmd-playwright` | Headless-browser rendering |\n| `pullmd-markitdown` | Document/media → Markdown conversion (has its own 1GB memory cap so a decompression bomb only kills the conversion, not the container) |\n\n### Installation\n\n```bash\nsudo mkdir -p /home/apps/pullmd\ncd /home/apps/pullmd\n```\n\n```bash\nsudo nano /home/apps/pullmd/.env\n```\n\n```bash\nPORT=3000\nPUBLIC_URL=https://pullmd.local.jalubru.com\n# Optional: vision/STT/LLM tiers, Reddit API creds, auth mode, etc. — see README for the full list.\nPULLMD_AUTH_MODE=disabled\n```\n\n```bash\nsudo nano /home/apps/pullmd/docker-compose.yml\n```\n\n```yaml\nservices:\n  pullmd:\n    image: aeternalabshq/pullmd:latest\n    container_name: pullmd\n    restart: unless-stopped\n    ports:\n      - \"${PORT:-3000}:3000\"\n    environment:\n      - PUBLIC_URL=${PUBLIC_URL:-http://localhost:${PORT:-3000}}\n      - TRAFILATURA_URL=http://trafilatura:8001/extract\n      - PLAYWRIGHT_URL=http://playwright:8002/render\n      - MARKITDOWN_URL=http://markitdown:8003/convert\n      - MARKITDOWN_YOUTUBE=${MARKITDOWN_YOUTUBE:-}\n      - PULLMD_VISION_API_KEY=${PULLMD_VISION_API_KEY:-}\n      - PULLMD_VISION_BASE_URL=${PULLMD_VISION_BASE_URL:-}\n      - PULLMD_VISION_MODEL=${PULLMD_VISION_MODEL:-}\n      - PULLMD_STT_API_KEY=${PULLMD_STT_API_KEY:-}\n      - PULLMD_STT_BASE_URL=${PULLMD_STT_BASE_URL:-}\n      - PULLMD_STT_MODEL=${PULLMD_STT_MODEL:-}\n      - PULLMD_LLM_API_KEY=${PULLMD_LLM_API_KEY:-}\n      - PULLMD_LLM_BASE_URL=${PULLMD_LLM_BASE_URL:-}\n      - PULLMD_PDF_OCR_API_KEY=${PULLMD_PDF_OCR_API_KEY:-}\n      - PULLMD_PDF_OCR_BASE_URL=${PULLMD_PDF_OCR_BASE_URL:-}\n      - PULLMD_PDF_OCR_MODEL=${PULLMD_PDF_OCR_MODEL:-}\n      - PULLMD_SOURCE_HEADER=${PULLMD_SOURCE_HEADER:-}\n      - PULLMD_FRONTMATTER_FIELDS=${PULLMD_FRONTMATTER_FIELDS:-}\n      - PULLMD_USER_AGENT=${PULLMD_USER_AGENT:-}\n      - PULLMD_UA_FEED_URL=${PULLMD_UA_FEED_URL:-}\n      - PULLMD_SITE_RECIPES=${PULLMD_SITE_RECIPES:-}\n      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID:-}\n      - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET:-}\n      - REDDIT_USER_AGENT=${REDDIT_USER_AGENT:-}\n      - DISABLE_PUBLIC_HISTORY=${DISABLE_PUBLIC_HISTORY:-false}\n      - PULLMD_AUTH_MODE=${PULLMD_AUTH_MODE:-disabled}\n      - PULLMD_ADMIN_EMAIL=${PULLMD_ADMIN_EMAIL:-}\n      - PULLMD_ADMIN_PASSWORD=${PULLMD_ADMIN_PASSWORD:-}\n      - PULLMD_AUTH_TOKEN=${PULLMD_AUTH_TOKEN:-}\n      - OAUTH_JWT_SECRET=${OAUTH_JWT_SECRET:-}\n      - CACHE_DB=/data/cache.db\n    volumes:\n      - ./data:/data\n    networks:\n      - pullmd-internal\n      - proxy\n    depends_on:\n      - trafilatura\n      - playwright\n      - markitdown\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.pullmd.rule=Host(`pullmd.local.jalubru.com`)\"\n      - \"traefik.http.routers.pullmd.entrypoints=https\"\n      - \"traefik.http.routers.pullmd.tls=true\"\n      - \"traefik.http.services.pullmd.loadbalancer.server.port=3000\"\n\n  trafilatura:\n    image: aeternalabshq/pullmd-trafilatura:latest\n    container_name: pullmd-trafilatura\n    restart: unless-stopped\n    networks:\n      - pullmd-internal\n\n  playwright:\n    image: aeternalabshq/pullmd-playwright:latest\n    container_name: pullmd-playwright\n    restart: unless-stopped\n    networks:\n      - pullmd-internal\n\n  markitdown:\n    image: aeternalabshq/pullmd-markitdown:latest\n    container_name: pullmd-markitdown\n    restart: unless-stopped\n    mem_limit: ${MARKITDOWN_MEM_LIMIT:-1g}\n    environment:\n      - MARKITDOWN_YT_TIMECODES=${MARKITDOWN_YT_TIMECODES:-links}\n      - MARKITDOWN_YT_CHUNK=${MARKITDOWN_YT_CHUNK:-30}\n      - MARKITDOWN_YT_LANGS=${MARKITDOWN_YT_LANGS:-}\n      - MARKITDOWN_YT_PROXY=${MARKITDOWN_YT_PROXY:-}\n      - MARKITDOWN_CONVERT_TIMEOUT=${MARKITDOWN_CONVERT_TIMEOUT:-60}\n      - MARKITDOWN_MEM_LIMIT_MB=${MARKITDOWN_MEM_LIMIT_MB:-0}\n    networks:\n      - pullmd-internal\n\nnetworks:\n  pullmd-internal:\n    driver: bridge\n  proxy:\n    external: true\n```\n\n```bash\ndocker compose -f /home/apps/pullmd/docker-compose.yml up -d\n```\n\nAuth is disabled by default (`PULLMD_AUTH_MODE=disabled`) — set an admin email/password or bearer token before exposing this beyond the LAN.\n\n---\n>[[00 Homelab|home]]"
+  },
+  "qbittorrent": {
+    "serviceId": "qbittorrent",
+    "sourceFile": "Torrent.md",
+    "title": "Torrent",
+    "frontmatter": {
+      "tags": [
+        "Homelab/Apps"
+      ],
+      "aliases": [
+        "Torrent"
+      ],
+      "ITname": [
+        "Torrent",
+        "qbittorrent"
+      ],
+      "ITcategory": "Mediaserver",
+      "ITmachine": [
+        "Raspberry Pi"
+      ],
+      "ITinstalltype": "docker",
+      "ITstatus": [
+        "installed"
+      ]
+    },
+    "summary": "[!info] Disclaimer Both Torrents and NZBs are using the same Docker Compose file! Torrent",
+    "links": [
+      {
+        "label": "Text - github media-stack",
+        "url": "https://github.com/navilg/media-stack"
+      },
+      {
+        "label": "192.168.0.195:5080",
+        "url": "http://192.168.0.195:5080"
+      },
+      {
+        "label": "qbittorrent:5080/",
+        "url": "http://qbittorrent:5080/"
+      },
+      {
+        "label": "vpn:5080/",
+        "url": "http://vpn:5080/"
+      },
+      {
+        "label": "qbittorrent:5080",
+        "url": "http://qbittorrent:5080"
+      },
+      {
+        "label": "vpn:5080",
+        "url": "http://vpn:5080"
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "bash",
+        "code": "docker network create mediastack"
+      },
+      {
+        "language": "bash",
+        "code": "VPN_SERVICE_PROVIDER=nordvpn OPENVPN_USER=[REDACTED] OPENVPN_PASSWORD=[REDACTED] SERVER_COUNTRIES=Switzerland docker compose --profile vpn up -d\n\n## docker compose -f docker-compose-nginx.yml up -d # OPTIONAL to use Nginx as reverse proxy"
+      },
+      {
+        "language": "bash",
+        "code": "docker compose up -d\n## docker compose -f docker-compose-nginx.yml up -d # OPTIONAL to use Nginx as reverse proxy"
+      },
+      {
+        "language": "bash",
+        "code": "docker exec -it qbittorrent bash # Get inside qBittorrent container\n\n## Above command will get you inside qBittorrent interactive terminal, Run below command in qbt terminal\nmkdir /downloads/movies /downloads/tvshows\nchown 1000:1000 /downloads/movies /downloads/tvshows"
+      },
+      {
+        "language": "text",
+        "code": "location /qbt/ {\n    proxy_pass         http://qbittorrent:5080/; # Comment this line if VPN is enabled.\n    # proxy_pass         http://vpn:5080/; # Uncomment this line if VPN is enabled.\n    proxy_http_version 1.1;\n\n    proxy_set_header   Host               http://qbittorrent:5080; # Comment this line if VPN is enabled.\n    # proxy_set_header   Host               http://vpn:5080; # Uncomment this line if VPN is enabled.\n    proxy_set_header   X-Forwarded-Host   $http_host;\n    proxy_set_header   X-Forwarded-For    $remote_addr;\n    proxy_cookie_path  /                  \"/; Secure\";\n}"
+      }
+    ],
+    "markdown": "# Torrent\n\n---\n[Text - github media-stack](https://github.com/navilg/media-stack)\n\n---\n>[!info] Disclaimer\n>Both [[Torrent|Torrents]] and [[NZB|NZBs]] are using the same [[Mediaserver#|Docker Compose]] file!\n### Docker Compose\n\ncd /media/wd2001ext4/apps/mediaserver\nsudo nano docker-compose.yaml\n\nMediaserver#\n\n---\n\n### media-stack\n\nA stack of self-hosted media managers and streamer along with VPN. \n\nStack include VPN, Radarr, Sonarr, Prowlarr, qBittorrent and Jellyfin.\n\n#### Requirements\n\n- Docker version 24.0.5 and above\n- Docker compose version v2.20.2 and above\n- It may also work on some of lower versions, but its not tested.\n\n#### Install media stack\n\nThere are two ways this stack can be deployed.\n\n1. With a VPN (Recommended)\n2. Without a VPN\n\nBefore we deploy the stack, We must create docker network first\n\n```bash\ndocker network create mediastack\n```\n\n**Deploy the stack with VPN**\n\nIf VPN is enabled, qBittorrent and Prowlarr will be put behind VPN.\n\nBy default, NordVPN is configured in `docker-compose.yml` file. This can be updated to use ExpressVPN, SurfShark, Custom OpenVPN or Wireguard VPN. It uses OpenVPN type for all the providers. \n\nCheck respective document of your VPN provider to generate OpenVPN username and password.\n\nBy default, VPN is disabled in `docker-compose.yml`. We just need comment and uncomment few lines in `docker-compose.yml` file to enable and use VPN. Go through the comment messages in `docker-compose.yml` file to update them accordingly. Its very well guided in the compose file itself.\n\nUpdate the `docker-compose.yml` file as guided in comment messsage in same file and follow below commands to deploy the stack.\n\nTo deploy the stack with VPN (with nordvpn):\n\n```bash\nVPN_SERVICE_PROVIDER=nordvpn OPENVPN_USER=[REDACTED] OPENVPN_PASSWORD=[REDACTED] SERVER_COUNTRIES=Switzerland docker compose --profile vpn up -d\n\n## docker compose -f docker-compose-nginx.yml up -d # OPTIONAL to use Nginx as reverse proxy\n```\n\n**Deploy the stack without VPN**\n\nTo deploy the stack with without VPN (highly discouraged), Run below command.\n\n```bash\ndocker compose up -d\n## docker compose -f docker-compose-nginx.yml up -d # OPTIONAL to use Nginx as reverse proxy\n```\n\n---\n### Configuration\n#### Configure qBittorrent\n\n- Open qBitTorrent at http://192.168.0.195:5080. Default username:password is admin:adminadmin\n- Go to Tools --> Options --> WebUI --> Change password\n- Run below commands on the server\n\n```bash\ndocker exec -it qbittorrent bash # Get inside qBittorrent container\n\n## Above command will get you inside qBittorrent interactive terminal, Run below command in qbt terminal\nmkdir /downloads/movies /downloads/tvshows\nchown 1000:1000 /downloads/movies /downloads/tvshows\n```\n### Nginx Configuration\n\n- Get inside Nginx container\n- `cd /etc/nginx/conf.d`\n- Add proxies for all tools.\n\n`docker cp nginx.conf nginx:/etc/nginx/conf.d/default.conf && docker exec -it nginx nginx -s reload`\n- Close ports of other tools in firewall/security groups except port 80 and 443.\n\n#### Apply SSL in Nginx\n\n- Open port 80 and 443.\n- Get inside Nginx container and install certbot and certbot-nginx `apk add certbot certbot-nginx`\n- Add URL in server block. e.g. `server_name  localhost armdev.navratangupta.in;` in /etc/nginx/conf.d/default.conf\n- Run `certbot --nginx` and provide details asked.\n\n#### qBittorrent Nginx proxy\n\n```\nlocation /qbt/ {\n    proxy_pass         http://qbittorrent:5080/; # Comment this line if VPN is enabled.\n    # proxy_pass         http://vpn:5080/; # Uncomment this line if VPN is enabled.\n    proxy_http_version 1.1;\n\n    proxy_set_header   Host               http://qbittorrent:5080; # Comment this line if VPN is enabled.\n    # proxy_set_header   Host               http://vpn:5080; # Uncomment this line if VPN is enabled.\n    proxy_set_header   X-Forwarded-Host   $http_host;\n    proxy_set_header   X-Forwarded-For    $remote_addr;\n    proxy_cookie_path  /                  \"/; Secure\";\n}\n```\n\n**Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n\n---\n>[[00 Homelab|home]] | [[Mediaserver|mediaserver]]"
   },
   "radarr": {
     "serviceId": "radarr",
@@ -1305,264 +1669,75 @@ export const serviceDocs = {
     ],
     "markdown": "## Mediaserver\n- [[Torrent|Torrent]] - qBitTorrent Setup\n- [[NZB|NZB]] - SABnzb Setup\n\n---\n### Docker Compose\n\n```bash\ndocker network create mediastack\nsudo mkdir -p /media/wd2001ext4/apps/mediaserver/{plex-config,tautulli-config,plex-logs,radarr-config,sonarr-config,prowlarr-config,bazarr-config,qbittorrent-config,sabnzbd-config}\n```\n\n```bash\nsudo nano /media/wd2001ext4/apps/mediaserver/docker-compose.yaml\n```\n\n```yaml\nname: media-stack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\n  ## Default credentials of qBittorrent - Username: admin password: adminadmin ##\n  ## Change password after install from UI --> Tools --> Options --> WebUI ##\n  qbittorrent:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    # image: lscr.io/linuxserver/qbittorrent:4.5.4 older version\n    container_name: qbittorrent\n    # Unomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # Comment below lines if VPN is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    # Unomment below line if vpn is enabled\n    # network_mode: service:vpn\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - WEBUI_PORT=5080\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/qbittorrent-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ## Comment/Disable below ports if VPN is enabled\n    ports:\n      - 5080:5080\n      - 6881:6881\n      - 6881:6881/udp\n    restart: unless-stopped\n    pull_policy: always\n\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    # image: lscr.io/linuxserver/radarr:4.7.5 older version\n    container_name: radarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    ports:\n      - 7878:7878\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/radarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    restart: unless-stopped\n    pull_policy: always\n\n  sonarr:\n    image: linuxserver/sonarr:latest #using v4 instead of v3\n##    image: linuxserver/sonarr:4.0.0-develop\n    container_name: sonarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sonarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ports:\n      - 8989:8989\n    restart: unless-stopped\n    pull_policy: always\n\n  prowlarr:\n    image: linuxserver/prowlarr:latest\n    container_name: prowlarr\n    # Uncomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # network_mode: service:vpn # Uncomment this line if vpn is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/prowlarr-config:/config\n    # Comment below ports if VPN is enabled.\n    ports:\n      - 9696:9696\n    restart: unless-stopped\n    pull_policy: always\n\n## Subtitel Manager and Downloader\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: bazarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/bazarr-config:/config\n      - /media/wd2001ext4/media/downloads/movies:/movies\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n    ports:\n      - 6767:6767\n    restart: unless-stopped\n    pull_policy: always\n\n## NZB Provider\n  sabnzbd:\n    image: lscr.io/linuxserver/sabnzbd:latest\n    container_name: sabnzbd\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sabnzbd-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n      - /media/wd2001ext4/media/incomplete-downloads:/incomplete-downloads\n    ports:\n      - 8070:8080\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n  radarr-config:\n  sonarr-config:\n  prowlarr-config:\n  bazarr-config:\n  qbittorrent-config:\n  sabnzbd-config:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /media/wd2001ext4/apps/mediaserver/docker-compose.yaml up -d\n```\n\n---\n#### Optiplex\n```bash\ndocker network create mediastack\n```\n\n```bash\nsudo mkdir /mediaserver\nsudo nano /mediaserver/docker-compose.yaml\n```\n\nalso included is [[Overseerr]]\n\n```yaml\nname: mediastack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /mnt/media/wd2001ext4/media/downloads/tvshows:/tv\n      - /mnt/media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /mediaserver/docker-compose.yaml up -d\n```\n---\n##### Unused:\n\n```yaml\n  # To use/enable VPN, Run this compose file with --profile=vpn. Its highly recommended to use VPN.\n  vpn:\n  ## Read https://github.com/qdm12/gluetun/wiki for details on configuring VPN for different service providers.\n    profiles: [\"vpn\"]\n    container_name: vpn\n    image: qmcgaw/gluetun:v3.35.0\n    cap_add:\n      - NET_ADMIN\n    environment:\n      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-nordvpn} # Valid values: nordvpn, expressvpn, protonvpn, surfshark or custom\n      - OPENVPN_USER=[REDACTED]\n      - OPENVPN_PASSWORD=[REDACTED]\n\n      ## For list of server countries, visit https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json\n\n      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-Latvia}\n    \n      # - FREE_ONLY=on  # Valid with protonvpn only. Value willbe set \"on\" if using free subscription provided by protonvpn\n\n      ## Enable below if VPN_SERVICE_PROVIDER=custom\n      # - VPN_TYPE=openvpn # or wireguard. \n\n      ## If VPN_TYPE is openvpn\n      # - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf\n\n      ## If VPN_TYPE is wireguard. Replace below env variables as required.\n      # - VPN_ENDPOINT_IP=1.2.3.4                                               # Replace with your wg endpoint ip or domain\n      # - VPN_ENDPOINT_PORT=51820                                               # Replace with wg server port\n      # - WIREGUARD_PUBLIC_KEY=[REDACTED]     # Replace with your wg public key\n      # - WIREGUARD_PRIVATE_KEY=[REDACTED]    # Replace with your wg client private key\n      # - WIREGUARD_PRESHARED_KEY=[REDACTED]  # Replaced with your wg pre-shared key\n      # - WIREGUARD_ADDRESSES=\"10.64.222.21/32\"                                 # Replace with wg address\n\n    ## Enable volume if VPN_SERVICE_PROVIDER=custom and VPN_TYPE=openvpn is used\n    # volumes:\n      # - /yourpath/yourconfig.conf:/gluetun/config.conf:ro\n\n    networks:\n      - mediastack\n    \n    # Uncomment/enable below ports if VPN is used/enabled\n    # ports:\n    #   # qbittorrent ports\n    #   - 5080:5080\n    #   - 6881:6881\n    #   - 6881:6881/udp\n    #   # prowlarr ports\n    #   - 9696:9696\n    restart: \"unless-stopped\"\n\n  jellyfin:\n    image: linuxserver/jellyfin:latest\n    container_name: jellyfin\n    # image: linuxserver/jellyfin:10.8.10 - old image\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/jellyfin-config:/config\n      - /media/wd2001ext4/media/downloads:/data\n  # devices:\n  #  - /dev/videoN:/dev/videoN # Mount GPU device \n    ports:\n      - 8096:8096\n      - 7359:7359/udp\n      - 8920:8920\n    restart: unless-stopped\n\n## Jellyfin stats\n  embystat:\n    image: lscr.io/linuxserver/embystat:latest\n    container_name: embystat\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/embystat-config:/config\n    ports:\n      - 6555:6555\n    restart: unless-stopped\n\n  cleanmyarr:\n    depends_on:\n      - radarr\n      - sonarr\n    image: linuxshots/cleanmyarr:0.4.1-beta\n    container_name: cleanmyarr\n    networks:\n      - mediastack\n      - proxy\n    volumes:\n      - cleanmyarr-config:/config\n    restart: unless-stopped\n  \nvolumes:\n  jellyfin-config:\n  embystat-config:\n  sabnzbd-config:\n  cleanmyarr-config:\n```\n\n---\n### Configuration\n\n#### Configure Plex\n\n- Open Plex at http://192.168.0.195:32400/web\n- Configure as it asks for the first time adding /tvshows and /movies\n\n#### Configure Tautulli\n\n- Open Tautulli at http://192.168.0.195:8181\n\n#### Configure Jellyfin\n\n- Open Jellyfin at http://192.168.0.195:8096\n- Configure as it asks for first time.\n- Add media library folder and choose /data/movies/\n\n#### Configure EmbyStat\n\n- Open EmbyStat at http://192.168.0.195:6555\n- Configure as it asks for first time.\n- Server: at 172.25.0.4 URL: https://jellyfin.jalubru.duckdns.org\n- API: [Jellyfin API](https://jellyfin.jalubru.duckdns.org/web/index.html#!/apikeys.html)\n\n#### Configure Radarr\n\n- Open Radarr at http://192.168.0.195:7878\n- Settings --> Media Management --> Check mark \"Movies deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a movie** (After Prowlarr is configured)\n\n- Movies --> Search for a movie --> Add Root folder (/downloads) --> Quality profile --> Add movie\n- Go to qBittorrent (http://192.168.0.195:5080) and see if movie is getting downloaded.\n\n#### Configure Sonarr\n\n- Open Sonarr at http://192.168.0.195:8989\n- Settings --> Media Management --> Check mark \"Shows deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a show** (After Prowlarr is configured)\n\n- Shows --> Search for a show --> Add Root folder (/downloads) --> Quality profile --> Add show\n- Go to qBittorrent (http://192.168.0.195:5080) and see if show is getting downloaded.\n\n#### Configure Prowlarr\n\n- Open Prowlarr at http://192.168.0.195:9696\n- Settings --> General --> Authentications --> Select Authentication and add username and password\n- Add Indexers, Indexers --> Add Indexer --> Search for indexer --> Choose base URL --> Test and Save\n- Add application, Settings --> Apps --> Add application --> Choose Sonarr or Radarr or any apps to link --> Prowlarr server (http://192.168.0.195:9696) --> Radarr (http://192.168.0.195:7878) or Sonarr (http://192.168.0.195:8989)--> API Key --> Test and Save\n- This will add indexers in respective apps automatically.\n\n#### Configure Bazarr\nhttps://wiki.bazarr.media\n\n- Open Bazarr at http://192.168.0.195:6767\n- Go to Settings -->Sonarr or Radarr --> Address: 192.168.0.195, \n- Create Account at https://www.opensubtitles.org, https://www.opensubtitles.com, \n\n---\n### Nginx Configuration\n\n- Get inside Nginx container\n- `cd /etc/nginx/conf.d`\n- Add proxies for all tools.\n\n`docker cp nginx.conf nginx:/etc/nginx/conf.d/default.conf && docker exec -it nginx nginx -s reload`\n- Close ports of other tools in firewall/security groups except port 80 and 443.\n\n#### Apply SSL in Nginx\n\n- Open port 80 and 443.\n- Get inside Nginx container and install certbot and certbot-nginx `apk add certbot certbot-nginx`\n- Add URL in server block. e.g. `server_name  localhost armdev.navratangupta.in;` in /etc/nginx/conf.d/default.conf\n- Run `certbot --nginx` and provide details asked.\n\n#### Jellyfin Nginx proxy\n\n- Add base URL, Admin Dashboard -> Networking -> Base URL (/jellyfin)\n- Add below config in Ngix config\n\n```\n location /jellyfin {\n        return 302 $scheme://$host/jellyfin/;\n    }\n\n    location /jellyfin/ {\n\n        proxy_pass http://jellyfin:8096/jellyfin/;\n\n        proxy_pass_request_headers on;\n\n        proxy_set_header Host $host;\n\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Forwarded-Host $http_host;\n\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection $http_connection;\n\n        # Disable buffering when the nginx proxy gets very resource heavy upon streaming\n        proxy_buffering off;\n    }\n```\n\n- Restart containers\n\n#### Radarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/radarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://radarr:7878;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n#### Sonarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/sonarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://sonarr:8989;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n#### Prowlarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/prowlarr)\n- Add below proxy in nginx configuration\n\nThis may need to change configurations in indexers and base in URL.\n\n```\nlocation /prowlarr {\n    proxy_pass http://prowlarr:9696; # Comment this line if VPN is enabled.\n    # proxy_pass http://vpn:9696; # Uncomment this line if VPN is enabled.\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n**Note: If VPN is enabled, then Prowlarr is reachable on vpn's service name**\n\n---\n>[[00 Homelab|home]]"
   },
+  "sabnzbd": {
+    "serviceId": "sabnzbd",
+    "sourceFile": "NZB.md",
+    "title": "NZB",
+    "frontmatter": {
+      "tags": [
+        "Homelab/Apps"
+      ],
+      "aliases": [
+        "NZB"
+      ],
+      "ITname": "NZB",
+      "ITcategory": "Mediaserver",
+      "ITmachine": [
+        "Raspberry Pi"
+      ],
+      "ITinstalltype": "docker",
+      "ITstatus": [
+        "installed"
+      ]
+    },
+    "summary": "[!info] Disclaimer Both Torrents and NZBs are using the same Docker Compose file! NZB",
+    "links": [
+      {
+        "label": "Text - addictedtotech how to install nzbget docker",
+        "url": "https://www.addictedtotech.net/how-to-install-nzbget-docker-on-a-raspberry-pi-4/#How_to_install_NZBGet_Docker_on_A_Raspberry_Pi"
+      },
+      {
+        "label": "Text - addictedtotech how to install radarr with nzb on docker",
+        "url": "https://www.addictedtotech.net/how-to-install-radarr-docker-on-a-raspberry-pi-4/"
+      },
+      {
+        "label": "Text - Github - SABNZBdb",
+        "url": "https://github.com/linuxserver/docker-sabnzbd"
+      },
+      {
+        "label": "Reddit - Usenet wiki provicers",
+        "url": "https://www.reddit.com/r/usenet/wiki/providers/"
+      },
+      {
+        "label": "Reddit Provider Deals",
+        "url": "https://www.reddit.com/r/usenet/wiki/providerdeals/"
+      },
+      {
+        "label": "Reddit Indexer List",
+        "url": "https://www.reddit.com/r/usenet/wiki/indexers/"
+      },
+      {
+        "label": "www.eweka.nl/en/myeweka?p=acd",
+        "url": "https://www.eweka.nl/en/myeweka?p=acd"
+      },
+      {
+        "label": "nzbgeek.info",
+        "url": "https://nzbgeek.info"
+      },
+      {
+        "label": "nzbplanet.net",
+        "url": "https://nzbplanet.net"
+      },
+      {
+        "label": "192.168.0.195:8070",
+        "url": "http://192.168.0.195:8070"
+      }
+    ],
+    "codeBlocks": [],
+    "markdown": "## NZB\n\n---\n[Text - addictedtotech how to install nzbget docker](https://www.addictedtotech.net/how-to-install-nzbget-docker-on-a-raspberry-pi-4/#How_to_install_NZBGet_Docker_on_A_Raspberry_Pi)\n[Text - addictedtotech how to install radarr with nzb on docker](https://www.addictedtotech.net/how-to-install-radarr-docker-on-a-raspberry-pi-4/)\n[Text - Github - SABNZBdb](https://github.com/linuxserver/docker-sabnzbd)\n\n---\n### Accounts\n[[Usenet]]\n\n>[!info] Disclaimer\n>Both [[Torrent|Torrents]] and [[NZB|NZBs]] are using the same [[Mediaserver#|Docker Compose]] file!\n\n---\n[Reddit - Usenet wiki provicers](https://www.reddit.com/r/usenet/wiki/providers/), [Reddit Provider Deals](https://www.reddit.com/r/usenet/wiki/providerdeals/))\n- [[Usenet#Eweka|Eweka Account Details]]: https://www.eweka.nl/en/myeweka?p=acd (50€ anually)\n\nIndexer: ([Reddit Indexer List](https://www.reddit.com/r/usenet/wiki/indexers/))\n- [[Usenet#NBZGeek|nzbgeek Account]]: https://nzbgeek.info (80€ lifetime)\n- [[Usenet#NzbPlanet|NzbPlanet Account]]: https://nzbplanet.net (45€ lifetime)\n\n#### Configure SABnzbd\n- Open SABnzbd at http://192.168.0.195:8070\n- Sorting? Handled by Sonarr, Radarr?\n\n---\n>[[00 Homelab|home]] | [[Mediaserver|mediaserver]]"
+  },
   "sonarr": {
     "serviceId": "sonarr",
-    "sourceFile": "Mediaserver.md",
-    "title": "Plex & Co.",
-    "frontmatter": {
-      "tags": [
-        "Homelab/Apps"
-      ],
-      "aliases": [
-        "Mediaserver"
-      ],
-      "ITname": "Plex & Co.",
-      "ITcategory": "Mediaserver",
-      "ITmachine": [
-        "Raspberry Pi"
-      ],
-      "ITinstalltype": "docker",
-      "ITstatus": [
-        "installed"
-      ]
-    },
-    "summary": "Mediaserver Torrent - qBitTorrent Setup NZB - SABnzb Setup",
-    "links": [
-      {
-        "label": "Jellyfin API",
-        "url": "https://jellyfin.jalubru.duckdns.org/web/index.html#!/apikeys.html"
-      },
-      {
-        "label": "github.com/qdm12/gluetun/wiki",
-        "url": "https://github.com/qdm12/gluetun/wiki"
-      },
-      {
-        "label": "raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json",
-        "url": "https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json"
-      },
-      {
-        "label": "192.168.0.195:32400/web",
-        "url": "http://192.168.0.195:32400/web"
-      },
-      {
-        "label": "192.168.0.195:8181",
-        "url": "http://192.168.0.195:8181"
-      },
-      {
-        "label": "192.168.0.195:8096",
-        "url": "http://192.168.0.195:8096"
-      },
-      {
-        "label": "192.168.0.195:6555",
-        "url": "http://192.168.0.195:6555"
-      },
-      {
-        "label": "jellyfin.jalubru.duckdns.org",
-        "url": "https://jellyfin.jalubru.duckdns.org"
-      },
-      {
-        "label": "192.168.0.195:7878",
-        "url": "http://192.168.0.195:7878"
-      },
-      {
-        "label": "192.168.0.195:8989",
-        "url": "http://192.168.0.195:8989"
-      },
-      {
-        "label": "192.168.0.195:9696",
-        "url": "http://192.168.0.195:9696"
-      },
-      {
-        "label": "wiki.bazarr.media",
-        "url": "https://wiki.bazarr.media"
-      }
-    ],
-    "codeBlocks": [
-      {
-        "language": "bash",
-        "code": "docker network create mediastack\nsudo mkdir -p /media/wd2001ext4/apps/mediaserver/{plex-config,tautulli-config,plex-logs,radarr-config,sonarr-config,prowlarr-config,bazarr-config,qbittorrent-config,sabnzbd-config}"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /media/wd2001ext4/apps/mediaserver/docker-compose.yaml"
-      },
-      {
-        "language": "yaml",
-        "code": "name: media-stack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\n  ## Default credentials of qBittorrent - Username: admin password: adminadmin ##\n  ## Change password after install from UI --> Tools --> Options --> WebUI ##\n  qbittorrent:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    # image: lscr.io/linuxserver/qbittorrent:4.5.4 older version\n    container_name: qbittorrent\n    # Unomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # Comment below lines if VPN is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    # Unomment below line if vpn is enabled\n    # network_mode: service:vpn\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - WEBUI_PORT=5080\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/qbittorrent-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ## Comment/Disable below ports if VPN is enabled\n    ports:\n      - 5080:5080\n      - 6881:6881\n      - 6881:6881/udp\n    restart: unless-stopped\n    pull_policy: always\n\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    # image: lscr.io/linuxserver/radarr:4.7.5 older version\n    container_name: radarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    ports:\n      - 7878:7878\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/radarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    restart: unless-stopped\n    pull_policy: always\n\n  sonarr:\n    image: linuxserver/sonarr:latest #using v4 instead of v3\n##    image: linuxserver/sonarr:4.0.0-develop\n    container_name: sonarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sonarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ports:\n      - 8989:8989\n    restart: unless-stopped\n    pull_policy: always\n\n  prowlarr:\n    image: linuxserver/prowlarr:latest\n    container_name: prowlarr\n    # Uncomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # network_mode: service:vpn # Uncomment this line if vpn is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/prowlarr-config:/config\n    # Comment below ports if VPN is enabled.\n    ports:\n      - 9696:9696\n    restart: unless-stopped\n    pull_policy: always\n\n## Subtitel Manager and Downloader\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: bazarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/bazarr-config:/config\n      - /media/wd2001ext4/media/downloads/movies:/movies\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n    ports:\n      - 6767:6767\n    restart: unless-stopped\n    pull_policy: always\n\n## NZB Provider\n  sabnzbd:\n    image: lscr.io/linuxserver/sabnzbd:latest\n    container_name: sabnzbd\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sabnzbd-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n      - /media/wd2001ext4/media/incomplete-downloads:/incomplete-downloads\n    ports:\n      - 8070:8080\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n  radarr-config:\n  sonarr-config:\n  prowlarr-config:\n  bazarr-config:\n  qbittorrent-config:\n  sabnzbd-config:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true"
-      },
-      {
-        "language": "bash",
-        "code": "sudo docker compose -f /media/wd2001ext4/apps/mediaserver/docker-compose.yaml up -d"
-      },
-      {
-        "language": "bash",
-        "code": "docker network create mediastack"
-      },
-      {
-        "language": "bash",
-        "code": "sudo mkdir /mediaserver\nsudo nano /mediaserver/docker-compose.yaml"
-      },
-      {
-        "language": "yaml",
-        "code": "name: mediastack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /mnt/media/wd2001ext4/media/downloads/tvshows:/tv\n      - /mnt/media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true"
-      },
-      {
-        "language": "bash",
-        "code": "sudo docker compose -f /mediaserver/docker-compose.yaml up -d"
-      },
-      {
-        "language": "yaml",
-        "code": "# To use/enable VPN, Run this compose file with --profile=vpn. Its highly recommended to use VPN.\n  vpn:\n  ## Read https://github.com/qdm12/gluetun/wiki for details on configuring VPN for different service providers.\n    profiles: [\"vpn\"]\n    container_name: vpn\n    image: qmcgaw/gluetun:v3.35.0\n    cap_add:\n      - NET_ADMIN\n    environment:\n      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-nordvpn} # Valid values: nordvpn, expressvpn, protonvpn, surfshark or custom\n      - OPENVPN_USER=[REDACTED]\n      - OPENVPN_PASSWORD=[REDACTED]\n\n      ## For list of server countries, visit https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json\n\n      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-Latvia}\n    \n      # - FREE_ONLY=on  # Valid with protonvpn only. Value willbe set \"on\" if using free subscription provided by protonvpn\n\n      ## Enable below if VPN_SERVICE_PROVIDER=custom\n      # - VPN_TYPE=openvpn # or wireguard. \n\n      ## If VPN_TYPE is openvpn\n      # - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf\n\n      ## If VPN_TYPE is wireguard. Replace below env variables as required.\n      # - VPN_ENDPOINT_IP=1.2.3.4                                               # Replace with your wg endpoint ip or domain\n      # - VPN_ENDPOINT_PORT=51820                                               # Replace with wg server port\n      # - WIREGUARD_PUBLIC_KEY=[REDACTED]     # Replace with your wg public key\n      # - WIREGUARD_PRIVATE_KEY=[REDACTED]    # Replace with your wg client private key\n      # - WIREGUARD_PRESHARED_KEY=[REDACTED]  # Replaced with your wg pre-shared key\n      # - WIREGUARD_ADDRESSES=\"10.64.222.21/32\"                                 # Replace with wg address\n\n    ## Enable volume if VPN_SERVICE_PROVIDER=custom and VPN_TYPE=openvpn is used\n    # volumes:\n      # - /yourpath/yourconfig.conf:/gluetun/config.conf:ro\n\n    networks:\n      - mediastack\n    \n    # Uncomment/enable below ports if VPN is used/enabled\n    # ports:\n    #   # qbittorrent ports\n    #   - 5080:5080\n    #   - 6881:6881\n    #   - 6881:6881/udp\n    #   # prowlarr ports\n    #   - 9696:9696\n    restart: \"unless-stopped\"\n\n  jellyfin:\n    image: linuxserver/jellyfin:latest\n    container_name: jellyfin\n    # image: linuxserver/jellyfin:10.8.10 - old image\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/jellyfin-config:/config\n      - /media/wd2001ext4/media/downloads:/data\n  # devices:\n  #  - /dev/videoN:/dev/videoN # Mount GPU device \n    ports:\n      - 8096:8096\n      - 7359:7359/udp\n      - 8920:8920\n    restart: unless-stopped\n\n## Jellyfin stats\n  embystat:\n    image: lscr.io/linuxserver/embystat:latest\n    container_name: embystat\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/embystat-config:/config\n    ports:\n      - 6555:6555\n    restart: unless-stopped\n\n  cleanmyarr:\n    depends_on:\n      - radarr\n      - sonarr\n    image: linuxshots/cleanmyarr:0.4.1-beta\n    container_name: cleanmyarr\n    networks:\n      - mediastack\n      - proxy\n    volumes:\n      - cleanmyarr-config:/config\n    restart: unless-stopped\n  \nvolumes:\n  jellyfin-config:\n  embystat-config:\n  sabnzbd-config:\n  cleanmyarr-config:"
-      },
-      {
-        "language": "text",
-        "code": "location /jellyfin {\n        return 302 $scheme://$host/jellyfin/;\n    }\n\n    location /jellyfin/ {\n\n        proxy_pass http://jellyfin:8096/jellyfin/;\n\n        proxy_pass_request_headers on;\n\n        proxy_set_header Host $host;\n\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Forwarded-Host $http_host;\n\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection $http_connection;\n\n        # Disable buffering when the nginx proxy gets very resource heavy upon streaming\n        proxy_buffering off;\n    }"
-      },
-      {
-        "language": "text",
-        "code": "location /radarr {\n    proxy_pass http://radarr:7878;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }"
-      },
-      {
-        "language": "text",
-        "code": "location /radarr {\n    proxy_pass http://sonarr:8989;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }"
-      },
-      {
-        "language": "text",
-        "code": "location /prowlarr {\n    proxy_pass http://prowlarr:9696; # Comment this line if VPN is enabled.\n    # proxy_pass http://vpn:9696; # Uncomment this line if VPN is enabled.\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }"
-      }
-    ],
-    "markdown": "## Mediaserver\n- [[Torrent|Torrent]] - qBitTorrent Setup\n- [[NZB|NZB]] - SABnzb Setup\n\n---\n### Docker Compose\n\n```bash\ndocker network create mediastack\nsudo mkdir -p /media/wd2001ext4/apps/mediaserver/{plex-config,tautulli-config,plex-logs,radarr-config,sonarr-config,prowlarr-config,bazarr-config,qbittorrent-config,sabnzbd-config}\n```\n\n```bash\nsudo nano /media/wd2001ext4/apps/mediaserver/docker-compose.yaml\n```\n\n```yaml\nname: media-stack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\n  ## Default credentials of qBittorrent - Username: admin password: adminadmin ##\n  ## Change password after install from UI --> Tools --> Options --> WebUI ##\n  qbittorrent:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    # image: lscr.io/linuxserver/qbittorrent:4.5.4 older version\n    container_name: qbittorrent\n    # Unomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # Comment below lines if VPN is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    # Unomment below line if vpn is enabled\n    # network_mode: service:vpn\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - WEBUI_PORT=5080\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/qbittorrent-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ## Comment/Disable below ports if VPN is enabled\n    ports:\n      - 5080:5080\n      - 6881:6881\n      - 6881:6881/udp\n    restart: unless-stopped\n    pull_policy: always\n\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    # image: lscr.io/linuxserver/radarr:4.7.5 older version\n    container_name: radarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    ports:\n      - 7878:7878\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/radarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    restart: unless-stopped\n    pull_policy: always\n\n  sonarr:\n    image: linuxserver/sonarr:latest #using v4 instead of v3\n##    image: linuxserver/sonarr:4.0.0-develop\n    container_name: sonarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sonarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ports:\n      - 8989:8989\n    restart: unless-stopped\n    pull_policy: always\n\n  prowlarr:\n    image: linuxserver/prowlarr:latest\n    container_name: prowlarr\n    # Uncomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # network_mode: service:vpn # Uncomment this line if vpn is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/prowlarr-config:/config\n    # Comment below ports if VPN is enabled.\n    ports:\n      - 9696:9696\n    restart: unless-stopped\n    pull_policy: always\n\n## Subtitel Manager and Downloader\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: bazarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/bazarr-config:/config\n      - /media/wd2001ext4/media/downloads/movies:/movies\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n    ports:\n      - 6767:6767\n    restart: unless-stopped\n    pull_policy: always\n\n## NZB Provider\n  sabnzbd:\n    image: lscr.io/linuxserver/sabnzbd:latest\n    container_name: sabnzbd\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sabnzbd-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n      - /media/wd2001ext4/media/incomplete-downloads:/incomplete-downloads\n    ports:\n      - 8070:8080\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n  radarr-config:\n  sonarr-config:\n  prowlarr-config:\n  bazarr-config:\n  qbittorrent-config:\n  sabnzbd-config:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /media/wd2001ext4/apps/mediaserver/docker-compose.yaml up -d\n```\n\n---\n#### Optiplex\n```bash\ndocker network create mediastack\n```\n\n```bash\nsudo mkdir /mediaserver\nsudo nano /mediaserver/docker-compose.yaml\n```\n\nalso included is [[Overseerr]]\n\n```yaml\nname: mediastack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /mnt/media/wd2001ext4/media/downloads/tvshows:/tv\n      - /mnt/media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /mediaserver/docker-compose.yaml up -d\n```\n---\n##### Unused:\n\n```yaml\n  # To use/enable VPN, Run this compose file with --profile=vpn. Its highly recommended to use VPN.\n  vpn:\n  ## Read https://github.com/qdm12/gluetun/wiki for details on configuring VPN for different service providers.\n    profiles: [\"vpn\"]\n    container_name: vpn\n    image: qmcgaw/gluetun:v3.35.0\n    cap_add:\n      - NET_ADMIN\n    environment:\n      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-nordvpn} # Valid values: nordvpn, expressvpn, protonvpn, surfshark or custom\n      - OPENVPN_USER=[REDACTED]\n      - OPENVPN_PASSWORD=[REDACTED]\n\n      ## For list of server countries, visit https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json\n\n      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-Latvia}\n    \n      # - FREE_ONLY=on  # Valid with protonvpn only. Value willbe set \"on\" if using free subscription provided by protonvpn\n\n      ## Enable below if VPN_SERVICE_PROVIDER=custom\n      # - VPN_TYPE=openvpn # or wireguard. \n\n      ## If VPN_TYPE is openvpn\n      # - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf\n\n      ## If VPN_TYPE is wireguard. Replace below env variables as required.\n      # - VPN_ENDPOINT_IP=1.2.3.4                                               # Replace with your wg endpoint ip or domain\n      # - VPN_ENDPOINT_PORT=51820                                               # Replace with wg server port\n      # - WIREGUARD_PUBLIC_KEY=[REDACTED]     # Replace with your wg public key\n      # - WIREGUARD_PRIVATE_KEY=[REDACTED]    # Replace with your wg client private key\n      # - WIREGUARD_PRESHARED_KEY=[REDACTED]  # Replaced with your wg pre-shared key\n      # - WIREGUARD_ADDRESSES=\"10.64.222.21/32\"                                 # Replace with wg address\n\n    ## Enable volume if VPN_SERVICE_PROVIDER=custom and VPN_TYPE=openvpn is used\n    # volumes:\n      # - /yourpath/yourconfig.conf:/gluetun/config.conf:ro\n\n    networks:\n      - mediastack\n    \n    # Uncomment/enable below ports if VPN is used/enabled\n    # ports:\n    #   # qbittorrent ports\n    #   - 5080:5080\n    #   - 6881:6881\n    #   - 6881:6881/udp\n    #   # prowlarr ports\n    #   - 9696:9696\n    restart: \"unless-stopped\"\n\n  jellyfin:\n    image: linuxserver/jellyfin:latest\n    container_name: jellyfin\n    # image: linuxserver/jellyfin:10.8.10 - old image\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/jellyfin-config:/config\n      - /media/wd2001ext4/media/downloads:/data\n  # devices:\n  #  - /dev/videoN:/dev/videoN # Mount GPU device \n    ports:\n      - 8096:8096\n      - 7359:7359/udp\n      - 8920:8920\n    restart: unless-stopped\n\n## Jellyfin stats\n  embystat:\n    image: lscr.io/linuxserver/embystat:latest\n    container_name: embystat\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/embystat-config:/config\n    ports:\n      - 6555:6555\n    restart: unless-stopped\n\n  cleanmyarr:\n    depends_on:\n      - radarr\n      - sonarr\n    image: linuxshots/cleanmyarr:0.4.1-beta\n    container_name: cleanmyarr\n    networks:\n      - mediastack\n      - proxy\n    volumes:\n      - cleanmyarr-config:/config\n    restart: unless-stopped\n  \nvolumes:\n  jellyfin-config:\n  embystat-config:\n  sabnzbd-config:\n  cleanmyarr-config:\n```\n\n---\n### Configuration\n\n#### Configure Plex\n\n- Open Plex at http://192.168.0.195:32400/web\n- Configure as it asks for the first time adding /tvshows and /movies\n\n#### Configure Tautulli\n\n- Open Tautulli at http://192.168.0.195:8181\n\n#### Configure Jellyfin\n\n- Open Jellyfin at http://192.168.0.195:8096\n- Configure as it asks for first time.\n- Add media library folder and choose /data/movies/\n\n#### Configure EmbyStat\n\n- Open EmbyStat at http://192.168.0.195:6555\n- Configure as it asks for first time.\n- Server: at 172.25.0.4 URL: https://jellyfin.jalubru.duckdns.org\n- API: [Jellyfin API](https://jellyfin.jalubru.duckdns.org/web/index.html#!/apikeys.html)\n\n#### Configure Radarr\n\n- Open Radarr at http://192.168.0.195:7878\n- Settings --> Media Management --> Check mark \"Movies deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a movie** (After Prowlarr is configured)\n\n- Movies --> Search for a movie --> Add Root folder (/downloads) --> Quality profile --> Add movie\n- Go to qBittorrent (http://192.168.0.195:5080) and see if movie is getting downloaded.\n\n#### Configure Sonarr\n\n- Open Sonarr at http://192.168.0.195:8989\n- Settings --> Media Management --> Check mark \"Shows deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a show** (After Prowlarr is configured)\n\n- Shows --> Search for a show --> Add Root folder (/downloads) --> Quality profile --> Add show\n- Go to qBittorrent (http://192.168.0.195:5080) and see if show is getting downloaded.\n\n#### Configure Prowlarr\n\n- Open Prowlarr at http://192.168.0.195:9696\n- Settings --> General --> Authentications --> Select Authentication and add username and password\n- Add Indexers, Indexers --> Add Indexer --> Search for indexer --> Choose base URL --> Test and Save\n- Add application, Settings --> Apps --> Add application --> Choose Sonarr or Radarr or any apps to link --> Prowlarr server (http://192.168.0.195:9696) --> Radarr (http://192.168.0.195:7878) or Sonarr (http://192.168.0.195:8989)--> API Key --> Test and Save\n- This will add indexers in respective apps automatically.\n\n#### Configure Bazarr\nhttps://wiki.bazarr.media\n\n- Open Bazarr at http://192.168.0.195:6767\n- Go to Settings -->Sonarr or Radarr --> Address: 192.168.0.195, \n- Create Account at https://www.opensubtitles.org, https://www.opensubtitles.com, \n\n---\n### Nginx Configuration\n\n- Get inside Nginx container\n- `cd /etc/nginx/conf.d`\n- Add proxies for all tools.\n\n`docker cp nginx.conf nginx:/etc/nginx/conf.d/default.conf && docker exec -it nginx nginx -s reload`\n- Close ports of other tools in firewall/security groups except port 80 and 443.\n\n#### Apply SSL in Nginx\n\n- Open port 80 and 443.\n- Get inside Nginx container and install certbot and certbot-nginx `apk add certbot certbot-nginx`\n- Add URL in server block. e.g. `server_name  localhost armdev.navratangupta.in;` in /etc/nginx/conf.d/default.conf\n- Run `certbot --nginx` and provide details asked.\n\n#### Jellyfin Nginx proxy\n\n- Add base URL, Admin Dashboard -> Networking -> Base URL (/jellyfin)\n- Add below config in Ngix config\n\n```\n location /jellyfin {\n        return 302 $scheme://$host/jellyfin/;\n    }\n\n    location /jellyfin/ {\n\n        proxy_pass http://jellyfin:8096/jellyfin/;\n\n        proxy_pass_request_headers on;\n\n        proxy_set_header Host $host;\n\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Forwarded-Host $http_host;\n\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection $http_connection;\n\n        # Disable buffering when the nginx proxy gets very resource heavy upon streaming\n        proxy_buffering off;\n    }\n```\n\n- Restart containers\n\n#### Radarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/radarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://radarr:7878;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n#### Sonarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/sonarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://sonarr:8989;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n#### Prowlarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/prowlarr)\n- Add below proxy in nginx configuration\n\nThis may need to change configurations in indexers and base in URL.\n\n```\nlocation /prowlarr {\n    proxy_pass http://prowlarr:9696; # Comment this line if VPN is enabled.\n    # proxy_pass http://vpn:9696; # Uncomment this line if VPN is enabled.\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n**Note: If VPN is enabled, then Prowlarr is reachable on vpn's service name**\n\n---\n>[[00 Homelab|home]]"
-  },
-  "bazarr": {
-    "serviceId": "bazarr",
-    "sourceFile": "Mediaserver.md",
-    "title": "Plex & Co.",
-    "frontmatter": {
-      "tags": [
-        "Homelab/Apps"
-      ],
-      "aliases": [
-        "Mediaserver"
-      ],
-      "ITname": "Plex & Co.",
-      "ITcategory": "Mediaserver",
-      "ITmachine": [
-        "Raspberry Pi"
-      ],
-      "ITinstalltype": "docker",
-      "ITstatus": [
-        "installed"
-      ]
-    },
-    "summary": "Mediaserver Torrent - qBitTorrent Setup NZB - SABnzb Setup",
-    "links": [
-      {
-        "label": "Jellyfin API",
-        "url": "https://jellyfin.jalubru.duckdns.org/web/index.html#!/apikeys.html"
-      },
-      {
-        "label": "github.com/qdm12/gluetun/wiki",
-        "url": "https://github.com/qdm12/gluetun/wiki"
-      },
-      {
-        "label": "raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json",
-        "url": "https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json"
-      },
-      {
-        "label": "192.168.0.195:32400/web",
-        "url": "http://192.168.0.195:32400/web"
-      },
-      {
-        "label": "192.168.0.195:8181",
-        "url": "http://192.168.0.195:8181"
-      },
-      {
-        "label": "192.168.0.195:8096",
-        "url": "http://192.168.0.195:8096"
-      },
-      {
-        "label": "192.168.0.195:6555",
-        "url": "http://192.168.0.195:6555"
-      },
-      {
-        "label": "jellyfin.jalubru.duckdns.org",
-        "url": "https://jellyfin.jalubru.duckdns.org"
-      },
-      {
-        "label": "192.168.0.195:7878",
-        "url": "http://192.168.0.195:7878"
-      },
-      {
-        "label": "192.168.0.195:8989",
-        "url": "http://192.168.0.195:8989"
-      },
-      {
-        "label": "192.168.0.195:9696",
-        "url": "http://192.168.0.195:9696"
-      },
-      {
-        "label": "wiki.bazarr.media",
-        "url": "https://wiki.bazarr.media"
-      }
-    ],
-    "codeBlocks": [
-      {
-        "language": "bash",
-        "code": "docker network create mediastack\nsudo mkdir -p /media/wd2001ext4/apps/mediaserver/{plex-config,tautulli-config,plex-logs,radarr-config,sonarr-config,prowlarr-config,bazarr-config,qbittorrent-config,sabnzbd-config}"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /media/wd2001ext4/apps/mediaserver/docker-compose.yaml"
-      },
-      {
-        "language": "yaml",
-        "code": "name: media-stack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\n  ## Default credentials of qBittorrent - Username: admin password: adminadmin ##\n  ## Change password after install from UI --> Tools --> Options --> WebUI ##\n  qbittorrent:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    # image: lscr.io/linuxserver/qbittorrent:4.5.4 older version\n    container_name: qbittorrent\n    # Unomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # Comment below lines if VPN is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    # Unomment below line if vpn is enabled\n    # network_mode: service:vpn\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - WEBUI_PORT=5080\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/qbittorrent-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ## Comment/Disable below ports if VPN is enabled\n    ports:\n      - 5080:5080\n      - 6881:6881\n      - 6881:6881/udp\n    restart: unless-stopped\n    pull_policy: always\n\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    # image: lscr.io/linuxserver/radarr:4.7.5 older version\n    container_name: radarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    ports:\n      - 7878:7878\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/radarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    restart: unless-stopped\n    pull_policy: always\n\n  sonarr:\n    image: linuxserver/sonarr:latest #using v4 instead of v3\n##    image: linuxserver/sonarr:4.0.0-develop\n    container_name: sonarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sonarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ports:\n      - 8989:8989\n    restart: unless-stopped\n    pull_policy: always\n\n  prowlarr:\n    image: linuxserver/prowlarr:latest\n    container_name: prowlarr\n    # Uncomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # network_mode: service:vpn # Uncomment this line if vpn is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/prowlarr-config:/config\n    # Comment below ports if VPN is enabled.\n    ports:\n      - 9696:9696\n    restart: unless-stopped\n    pull_policy: always\n\n## Subtitel Manager and Downloader\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: bazarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/bazarr-config:/config\n      - /media/wd2001ext4/media/downloads/movies:/movies\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n    ports:\n      - 6767:6767\n    restart: unless-stopped\n    pull_policy: always\n\n## NZB Provider\n  sabnzbd:\n    image: lscr.io/linuxserver/sabnzbd:latest\n    container_name: sabnzbd\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sabnzbd-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n      - /media/wd2001ext4/media/incomplete-downloads:/incomplete-downloads\n    ports:\n      - 8070:8080\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n  radarr-config:\n  sonarr-config:\n  prowlarr-config:\n  bazarr-config:\n  qbittorrent-config:\n  sabnzbd-config:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true"
-      },
-      {
-        "language": "bash",
-        "code": "sudo docker compose -f /media/wd2001ext4/apps/mediaserver/docker-compose.yaml up -d"
-      },
-      {
-        "language": "bash",
-        "code": "docker network create mediastack"
-      },
-      {
-        "language": "bash",
-        "code": "sudo mkdir /mediaserver\nsudo nano /mediaserver/docker-compose.yaml"
-      },
-      {
-        "language": "yaml",
-        "code": "name: mediastack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /mnt/media/wd2001ext4/media/downloads/tvshows:/tv\n      - /mnt/media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true"
-      },
-      {
-        "language": "bash",
-        "code": "sudo docker compose -f /mediaserver/docker-compose.yaml up -d"
-      },
-      {
-        "language": "yaml",
-        "code": "# To use/enable VPN, Run this compose file with --profile=vpn. Its highly recommended to use VPN.\n  vpn:\n  ## Read https://github.com/qdm12/gluetun/wiki for details on configuring VPN for different service providers.\n    profiles: [\"vpn\"]\n    container_name: vpn\n    image: qmcgaw/gluetun:v3.35.0\n    cap_add:\n      - NET_ADMIN\n    environment:\n      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-nordvpn} # Valid values: nordvpn, expressvpn, protonvpn, surfshark or custom\n      - OPENVPN_USER=[REDACTED]\n      - OPENVPN_PASSWORD=[REDACTED]\n\n      ## For list of server countries, visit https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json\n\n      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-Latvia}\n    \n      # - FREE_ONLY=on  # Valid with protonvpn only. Value willbe set \"on\" if using free subscription provided by protonvpn\n\n      ## Enable below if VPN_SERVICE_PROVIDER=custom\n      # - VPN_TYPE=openvpn # or wireguard. \n\n      ## If VPN_TYPE is openvpn\n      # - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf\n\n      ## If VPN_TYPE is wireguard. Replace below env variables as required.\n      # - VPN_ENDPOINT_IP=1.2.3.4                                               # Replace with your wg endpoint ip or domain\n      # - VPN_ENDPOINT_PORT=51820                                               # Replace with wg server port\n      # - WIREGUARD_PUBLIC_KEY=[REDACTED]     # Replace with your wg public key\n      # - WIREGUARD_PRIVATE_KEY=[REDACTED]    # Replace with your wg client private key\n      # - WIREGUARD_PRESHARED_KEY=[REDACTED]  # Replaced with your wg pre-shared key\n      # - WIREGUARD_ADDRESSES=\"10.64.222.21/32\"                                 # Replace with wg address\n\n    ## Enable volume if VPN_SERVICE_PROVIDER=custom and VPN_TYPE=openvpn is used\n    # volumes:\n      # - /yourpath/yourconfig.conf:/gluetun/config.conf:ro\n\n    networks:\n      - mediastack\n    \n    # Uncomment/enable below ports if VPN is used/enabled\n    # ports:\n    #   # qbittorrent ports\n    #   - 5080:5080\n    #   - 6881:6881\n    #   - 6881:6881/udp\n    #   # prowlarr ports\n    #   - 9696:9696\n    restart: \"unless-stopped\"\n\n  jellyfin:\n    image: linuxserver/jellyfin:latest\n    container_name: jellyfin\n    # image: linuxserver/jellyfin:10.8.10 - old image\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/jellyfin-config:/config\n      - /media/wd2001ext4/media/downloads:/data\n  # devices:\n  #  - /dev/videoN:/dev/videoN # Mount GPU device \n    ports:\n      - 8096:8096\n      - 7359:7359/udp\n      - 8920:8920\n    restart: unless-stopped\n\n## Jellyfin stats\n  embystat:\n    image: lscr.io/linuxserver/embystat:latest\n    container_name: embystat\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/embystat-config:/config\n    ports:\n      - 6555:6555\n    restart: unless-stopped\n\n  cleanmyarr:\n    depends_on:\n      - radarr\n      - sonarr\n    image: linuxshots/cleanmyarr:0.4.1-beta\n    container_name: cleanmyarr\n    networks:\n      - mediastack\n      - proxy\n    volumes:\n      - cleanmyarr-config:/config\n    restart: unless-stopped\n  \nvolumes:\n  jellyfin-config:\n  embystat-config:\n  sabnzbd-config:\n  cleanmyarr-config:"
-      },
-      {
-        "language": "text",
-        "code": "location /jellyfin {\n        return 302 $scheme://$host/jellyfin/;\n    }\n\n    location /jellyfin/ {\n\n        proxy_pass http://jellyfin:8096/jellyfin/;\n\n        proxy_pass_request_headers on;\n\n        proxy_set_header Host $host;\n\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Forwarded-Host $http_host;\n\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection $http_connection;\n\n        # Disable buffering when the nginx proxy gets very resource heavy upon streaming\n        proxy_buffering off;\n    }"
-      },
-      {
-        "language": "text",
-        "code": "location /radarr {\n    proxy_pass http://radarr:7878;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }"
-      },
-      {
-        "language": "text",
-        "code": "location /radarr {\n    proxy_pass http://sonarr:8989;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }"
-      },
-      {
-        "language": "text",
-        "code": "location /prowlarr {\n    proxy_pass http://prowlarr:9696; # Comment this line if VPN is enabled.\n    # proxy_pass http://vpn:9696; # Uncomment this line if VPN is enabled.\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }"
-      }
-    ],
-    "markdown": "## Mediaserver\n- [[Torrent|Torrent]] - qBitTorrent Setup\n- [[NZB|NZB]] - SABnzb Setup\n\n---\n### Docker Compose\n\n```bash\ndocker network create mediastack\nsudo mkdir -p /media/wd2001ext4/apps/mediaserver/{plex-config,tautulli-config,plex-logs,radarr-config,sonarr-config,prowlarr-config,bazarr-config,qbittorrent-config,sabnzbd-config}\n```\n\n```bash\nsudo nano /media/wd2001ext4/apps/mediaserver/docker-compose.yaml\n```\n\n```yaml\nname: media-stack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\n  ## Default credentials of qBittorrent - Username: admin password: adminadmin ##\n  ## Change password after install from UI --> Tools --> Options --> WebUI ##\n  qbittorrent:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    # image: lscr.io/linuxserver/qbittorrent:4.5.4 older version\n    container_name: qbittorrent\n    # Unomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # Comment below lines if VPN is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    # Unomment below line if vpn is enabled\n    # network_mode: service:vpn\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - WEBUI_PORT=5080\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/qbittorrent-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ## Comment/Disable below ports if VPN is enabled\n    ports:\n      - 5080:5080\n      - 6881:6881\n      - 6881:6881/udp\n    restart: unless-stopped\n    pull_policy: always\n\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    # image: lscr.io/linuxserver/radarr:4.7.5 older version\n    container_name: radarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    ports:\n      - 7878:7878\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/radarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    restart: unless-stopped\n    pull_policy: always\n\n  sonarr:\n    image: linuxserver/sonarr:latest #using v4 instead of v3\n##    image: linuxserver/sonarr:4.0.0-develop\n    container_name: sonarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sonarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ports:\n      - 8989:8989\n    restart: unless-stopped\n    pull_policy: always\n\n  prowlarr:\n    image: linuxserver/prowlarr:latest\n    container_name: prowlarr\n    # Uncomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # network_mode: service:vpn # Uncomment this line if vpn is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/prowlarr-config:/config\n    # Comment below ports if VPN is enabled.\n    ports:\n      - 9696:9696\n    restart: unless-stopped\n    pull_policy: always\n\n## Subtitel Manager and Downloader\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: bazarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/bazarr-config:/config\n      - /media/wd2001ext4/media/downloads/movies:/movies\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n    ports:\n      - 6767:6767\n    restart: unless-stopped\n    pull_policy: always\n\n## NZB Provider\n  sabnzbd:\n    image: lscr.io/linuxserver/sabnzbd:latest\n    container_name: sabnzbd\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sabnzbd-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n      - /media/wd2001ext4/media/incomplete-downloads:/incomplete-downloads\n    ports:\n      - 8070:8080\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n  radarr-config:\n  sonarr-config:\n  prowlarr-config:\n  bazarr-config:\n  qbittorrent-config:\n  sabnzbd-config:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /media/wd2001ext4/apps/mediaserver/docker-compose.yaml up -d\n```\n\n---\n#### Optiplex\n```bash\ndocker network create mediastack\n```\n\n```bash\nsudo mkdir /mediaserver\nsudo nano /mediaserver/docker-compose.yaml\n```\n\nalso included is [[Overseerr]]\n\n```yaml\nname: mediastack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /mnt/media/wd2001ext4/media/downloads/tvshows:/tv\n      - /mnt/media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /mediaserver/docker-compose.yaml up -d\n```\n---\n##### Unused:\n\n```yaml\n  # To use/enable VPN, Run this compose file with --profile=vpn. Its highly recommended to use VPN.\n  vpn:\n  ## Read https://github.com/qdm12/gluetun/wiki for details on configuring VPN for different service providers.\n    profiles: [\"vpn\"]\n    container_name: vpn\n    image: qmcgaw/gluetun:v3.35.0\n    cap_add:\n      - NET_ADMIN\n    environment:\n      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-nordvpn} # Valid values: nordvpn, expressvpn, protonvpn, surfshark or custom\n      - OPENVPN_USER=[REDACTED]\n      - OPENVPN_PASSWORD=[REDACTED]\n\n      ## For list of server countries, visit https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json\n\n      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-Latvia}\n    \n      # - FREE_ONLY=on  # Valid with protonvpn only. Value willbe set \"on\" if using free subscription provided by protonvpn\n\n      ## Enable below if VPN_SERVICE_PROVIDER=custom\n      # - VPN_TYPE=openvpn # or wireguard. \n\n      ## If VPN_TYPE is openvpn\n      # - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf\n\n      ## If VPN_TYPE is wireguard. Replace below env variables as required.\n      # - VPN_ENDPOINT_IP=1.2.3.4                                               # Replace with your wg endpoint ip or domain\n      # - VPN_ENDPOINT_PORT=51820                                               # Replace with wg server port\n      # - WIREGUARD_PUBLIC_KEY=[REDACTED]     # Replace with your wg public key\n      # - WIREGUARD_PRIVATE_KEY=[REDACTED]    # Replace with your wg client private key\n      # - WIREGUARD_PRESHARED_KEY=[REDACTED]  # Replaced with your wg pre-shared key\n      # - WIREGUARD_ADDRESSES=\"10.64.222.21/32\"                                 # Replace with wg address\n\n    ## Enable volume if VPN_SERVICE_PROVIDER=custom and VPN_TYPE=openvpn is used\n    # volumes:\n      # - /yourpath/yourconfig.conf:/gluetun/config.conf:ro\n\n    networks:\n      - mediastack\n    \n    # Uncomment/enable below ports if VPN is used/enabled\n    # ports:\n    #   # qbittorrent ports\n    #   - 5080:5080\n    #   - 6881:6881\n    #   - 6881:6881/udp\n    #   # prowlarr ports\n    #   - 9696:9696\n    restart: \"unless-stopped\"\n\n  jellyfin:\n    image: linuxserver/jellyfin:latest\n    container_name: jellyfin\n    # image: linuxserver/jellyfin:10.8.10 - old image\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/jellyfin-config:/config\n      - /media/wd2001ext4/media/downloads:/data\n  # devices:\n  #  - /dev/videoN:/dev/videoN # Mount GPU device \n    ports:\n      - 8096:8096\n      - 7359:7359/udp\n      - 8920:8920\n    restart: unless-stopped\n\n## Jellyfin stats\n  embystat:\n    image: lscr.io/linuxserver/embystat:latest\n    container_name: embystat\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/embystat-config:/config\n    ports:\n      - 6555:6555\n    restart: unless-stopped\n\n  cleanmyarr:\n    depends_on:\n      - radarr\n      - sonarr\n    image: linuxshots/cleanmyarr:0.4.1-beta\n    container_name: cleanmyarr\n    networks:\n      - mediastack\n      - proxy\n    volumes:\n      - cleanmyarr-config:/config\n    restart: unless-stopped\n  \nvolumes:\n  jellyfin-config:\n  embystat-config:\n  sabnzbd-config:\n  cleanmyarr-config:\n```\n\n---\n### Configuration\n\n#### Configure Plex\n\n- Open Plex at http://192.168.0.195:32400/web\n- Configure as it asks for the first time adding /tvshows and /movies\n\n#### Configure Tautulli\n\n- Open Tautulli at http://192.168.0.195:8181\n\n#### Configure Jellyfin\n\n- Open Jellyfin at http://192.168.0.195:8096\n- Configure as it asks for first time.\n- Add media library folder and choose /data/movies/\n\n#### Configure EmbyStat\n\n- Open EmbyStat at http://192.168.0.195:6555\n- Configure as it asks for first time.\n- Server: at 172.25.0.4 URL: https://jellyfin.jalubru.duckdns.org\n- API: [Jellyfin API](https://jellyfin.jalubru.duckdns.org/web/index.html#!/apikeys.html)\n\n#### Configure Radarr\n\n- Open Radarr at http://192.168.0.195:7878\n- Settings --> Media Management --> Check mark \"Movies deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a movie** (After Prowlarr is configured)\n\n- Movies --> Search for a movie --> Add Root folder (/downloads) --> Quality profile --> Add movie\n- Go to qBittorrent (http://192.168.0.195:5080) and see if movie is getting downloaded.\n\n#### Configure Sonarr\n\n- Open Sonarr at http://192.168.0.195:8989\n- Settings --> Media Management --> Check mark \"Shows deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a show** (After Prowlarr is configured)\n\n- Shows --> Search for a show --> Add Root folder (/downloads) --> Quality profile --> Add show\n- Go to qBittorrent (http://192.168.0.195:5080) and see if show is getting downloaded.\n\n#### Configure Prowlarr\n\n- Open Prowlarr at http://192.168.0.195:9696\n- Settings --> General --> Authentications --> Select Authentication and add username and password\n- Add Indexers, Indexers --> Add Indexer --> Search for indexer --> Choose base URL --> Test and Save\n- Add application, Settings --> Apps --> Add application --> Choose Sonarr or Radarr or any apps to link --> Prowlarr server (http://192.168.0.195:9696) --> Radarr (http://192.168.0.195:7878) or Sonarr (http://192.168.0.195:8989)--> API Key --> Test and Save\n- This will add indexers in respective apps automatically.\n\n#### Configure Bazarr\nhttps://wiki.bazarr.media\n\n- Open Bazarr at http://192.168.0.195:6767\n- Go to Settings -->Sonarr or Radarr --> Address: 192.168.0.195, \n- Create Account at https://www.opensubtitles.org, https://www.opensubtitles.com, \n\n---\n### Nginx Configuration\n\n- Get inside Nginx container\n- `cd /etc/nginx/conf.d`\n- Add proxies for all tools.\n\n`docker cp nginx.conf nginx:/etc/nginx/conf.d/default.conf && docker exec -it nginx nginx -s reload`\n- Close ports of other tools in firewall/security groups except port 80 and 443.\n\n#### Apply SSL in Nginx\n\n- Open port 80 and 443.\n- Get inside Nginx container and install certbot and certbot-nginx `apk add certbot certbot-nginx`\n- Add URL in server block. e.g. `server_name  localhost armdev.navratangupta.in;` in /etc/nginx/conf.d/default.conf\n- Run `certbot --nginx` and provide details asked.\n\n#### Jellyfin Nginx proxy\n\n- Add base URL, Admin Dashboard -> Networking -> Base URL (/jellyfin)\n- Add below config in Ngix config\n\n```\n location /jellyfin {\n        return 302 $scheme://$host/jellyfin/;\n    }\n\n    location /jellyfin/ {\n\n        proxy_pass http://jellyfin:8096/jellyfin/;\n\n        proxy_pass_request_headers on;\n\n        proxy_set_header Host $host;\n\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Forwarded-Host $http_host;\n\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection $http_connection;\n\n        # Disable buffering when the nginx proxy gets very resource heavy upon streaming\n        proxy_buffering off;\n    }\n```\n\n- Restart containers\n\n#### Radarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/radarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://radarr:7878;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n#### Sonarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/sonarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://sonarr:8989;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n#### Prowlarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/prowlarr)\n- Add below proxy in nginx configuration\n\nThis may need to change configurations in indexers and base in URL.\n\n```\nlocation /prowlarr {\n    proxy_pass http://prowlarr:9696; # Comment this line if VPN is enabled.\n    # proxy_pass http://vpn:9696; # Uncomment this line if VPN is enabled.\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n**Note: If VPN is enabled, then Prowlarr is reachable on vpn's service name**\n\n---\n>[[00 Homelab|home]]"
-  },
-  "prowlarr": {
-    "serviceId": "prowlarr",
     "sourceFile": "Mediaserver.md",
     "title": "Plex & Co.",
     "frontmatter": {
@@ -1817,253 +1992,219 @@ export const serviceDocs = {
     ],
     "markdown": "## Mediaserver\n- [[Torrent|Torrent]] - qBitTorrent Setup\n- [[NZB|NZB]] - SABnzb Setup\n\n---\n### Docker Compose\n\n```bash\ndocker network create mediastack\nsudo mkdir -p /media/wd2001ext4/apps/mediaserver/{plex-config,tautulli-config,plex-logs,radarr-config,sonarr-config,prowlarr-config,bazarr-config,qbittorrent-config,sabnzbd-config}\n```\n\n```bash\nsudo nano /media/wd2001ext4/apps/mediaserver/docker-compose.yaml\n```\n\n```yaml\nname: media-stack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n      - /media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\n  ## Default credentials of qBittorrent - Username: admin password: adminadmin ##\n  ## Change password after install from UI --> Tools --> Options --> WebUI ##\n  qbittorrent:\n    image: lscr.io/linuxserver/qbittorrent:latest\n    # image: lscr.io/linuxserver/qbittorrent:4.5.4 older version\n    container_name: qbittorrent\n    # Unomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # Comment below lines if VPN is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    # Unomment below line if vpn is enabled\n    # network_mode: service:vpn\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - WEBUI_PORT=5080\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/qbittorrent-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ## Comment/Disable below ports if VPN is enabled\n    ports:\n      - 5080:5080\n      - 6881:6881\n      - 6881:6881/udp\n    restart: unless-stopped\n    pull_policy: always\n\n  radarr:\n    image: lscr.io/linuxserver/radarr:latest\n    # image: lscr.io/linuxserver/radarr:4.7.5 older version\n    container_name: radarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    ports:\n      - 7878:7878\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/radarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    restart: unless-stopped\n    pull_policy: always\n\n  sonarr:\n    image: linuxserver/sonarr:latest #using v4 instead of v3\n##    image: linuxserver/sonarr:4.0.0-develop\n    container_name: sonarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sonarr-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n    ports:\n      - 8989:8989\n    restart: unless-stopped\n    pull_policy: always\n\n  prowlarr:\n    image: linuxserver/prowlarr:latest\n    container_name: prowlarr\n    # Uncomment below if vpn is enabled\n    # depends_on:               # Uncomment this line if vpn is enabled\n    #   - vpn                   # Uncomment this line if vpn is enabled\n    # network_mode: service:vpn # Uncomment this line if vpn is enabled\n    networks:               # Comment this line if vpn is enabled\n      - mediastack          # Comment this line if vpn is enabled\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/prowlarr-config:/config\n    # Comment below ports if VPN is enabled.\n    ports:\n      - 9696:9696\n    restart: unless-stopped\n    pull_policy: always\n\n## Subtitel Manager and Downloader\n  bazarr:\n    image: lscr.io/linuxserver/bazarr:latest\n    container_name: bazarr\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/bazarr-config:/config\n      - /media/wd2001ext4/media/downloads/movies:/movies\n      - /media/wd2001ext4/media/downloads/tvshows:/tv\n    ports:\n      - 6767:6767\n    restart: unless-stopped\n    pull_policy: always\n\n## NZB Provider\n  sabnzbd:\n    image: lscr.io/linuxserver/sabnzbd:latest\n    container_name: sabnzbd\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/sabnzbd-config:/config\n      - /media/wd2001ext4/media/downloads:/downloads\n      - /media/wd2001ext4/media/incomplete-downloads:/incomplete-downloads\n    ports:\n      - 8070:8080\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n  radarr-config:\n  sonarr-config:\n  prowlarr-config:\n  bazarr-config:\n  qbittorrent-config:\n  sabnzbd-config:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /media/wd2001ext4/apps/mediaserver/docker-compose.yaml up -d\n```\n\n---\n#### Optiplex\n```bash\ndocker network create mediastack\n```\n\n```bash\nsudo mkdir /mediaserver\nsudo nano /mediaserver/docker-compose.yaml\n```\n\nalso included is [[Overseerr]]\n\n```yaml\nname: mediastack\nservices:\n  plex:\n    image: linuxserver/plex:latest\n    container_name: plex\n    network_mode: host\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n      - VERSION=docker\n      - PLEX_CLAIM= [REDACTED]\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-config:/config\n      - /mnt/media/wd2001ext4/media/downloads/tvshows:/tv\n      - /mnt/media/wd2001ext4/media/downloads/movies:/movies\n    restart: unless-stopped\n    pull_policy: always\n\n## plex statistics\n  tautulli:\n    image: linuxserver/tautulli\n    container_name: tautulli\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /mnt/media/wd2001ext4/apps/mediaserver/tautulli-config:/config\n      - /mnt/media/wd2001ext4/apps/mediaserver/plex-logs:/plexlogs\n    ports:\n      - 8181:8181\n    restart: unless-stopped\n    pull_policy: always\n\nvolumes:\n  downloads:\n  incomplete-downloads:\n  plex-config:\n  tautulli-config:\n  plex-logs:\n\nnetworks:\n  mediastack:\n    external: true\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /mediaserver/docker-compose.yaml up -d\n```\n---\n##### Unused:\n\n```yaml\n  # To use/enable VPN, Run this compose file with --profile=vpn. Its highly recommended to use VPN.\n  vpn:\n  ## Read https://github.com/qdm12/gluetun/wiki for details on configuring VPN for different service providers.\n    profiles: [\"vpn\"]\n    container_name: vpn\n    image: qmcgaw/gluetun:v3.35.0\n    cap_add:\n      - NET_ADMIN\n    environment:\n      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-nordvpn} # Valid values: nordvpn, expressvpn, protonvpn, surfshark or custom\n      - OPENVPN_USER=[REDACTED]\n      - OPENVPN_PASSWORD=[REDACTED]\n\n      ## For list of server countries, visit https://raw.githubusercontent.com/qdm12/gluetun/master/internal/storage/servers.json\n\n      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-Latvia}\n    \n      # - FREE_ONLY=on  # Valid with protonvpn only. Value willbe set \"on\" if using free subscription provided by protonvpn\n\n      ## Enable below if VPN_SERVICE_PROVIDER=custom\n      # - VPN_TYPE=openvpn # or wireguard. \n\n      ## If VPN_TYPE is openvpn\n      # - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf\n\n      ## If VPN_TYPE is wireguard. Replace below env variables as required.\n      # - VPN_ENDPOINT_IP=1.2.3.4                                               # Replace with your wg endpoint ip or domain\n      # - VPN_ENDPOINT_PORT=51820                                               # Replace with wg server port\n      # - WIREGUARD_PUBLIC_KEY=[REDACTED]     # Replace with your wg public key\n      # - WIREGUARD_PRIVATE_KEY=[REDACTED]    # Replace with your wg client private key\n      # - WIREGUARD_PRESHARED_KEY=[REDACTED]  # Replaced with your wg pre-shared key\n      # - WIREGUARD_ADDRESSES=\"10.64.222.21/32\"                                 # Replace with wg address\n\n    ## Enable volume if VPN_SERVICE_PROVIDER=custom and VPN_TYPE=openvpn is used\n    # volumes:\n      # - /yourpath/yourconfig.conf:/gluetun/config.conf:ro\n\n    networks:\n      - mediastack\n    \n    # Uncomment/enable below ports if VPN is used/enabled\n    # ports:\n    #   # qbittorrent ports\n    #   - 5080:5080\n    #   - 6881:6881\n    #   - 6881:6881/udp\n    #   # prowlarr ports\n    #   - 9696:9696\n    restart: \"unless-stopped\"\n\n  jellyfin:\n    image: linuxserver/jellyfin:latest\n    container_name: jellyfin\n    # image: linuxserver/jellyfin:10.8.10 - old image\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/jellyfin-config:/config\n      - /media/wd2001ext4/media/downloads:/data\n  # devices:\n  #  - /dev/videoN:/dev/videoN # Mount GPU device \n    ports:\n      - 8096:8096\n      - 7359:7359/udp\n      - 8920:8920\n    restart: unless-stopped\n\n## Jellyfin stats\n  embystat:\n    image: lscr.io/linuxserver/embystat:latest\n    container_name: embystat\n    networks:\n      - mediastack\n      - proxy\n    environment:\n      - PUID=1000\n      - PGID=1000\n      - TZ=Europe/Riga\n    volumes:\n      - /media/wd2001ext4/apps/mediaserver/embystat-config:/config\n    ports:\n      - 6555:6555\n    restart: unless-stopped\n\n  cleanmyarr:\n    depends_on:\n      - radarr\n      - sonarr\n    image: linuxshots/cleanmyarr:0.4.1-beta\n    container_name: cleanmyarr\n    networks:\n      - mediastack\n      - proxy\n    volumes:\n      - cleanmyarr-config:/config\n    restart: unless-stopped\n  \nvolumes:\n  jellyfin-config:\n  embystat-config:\n  sabnzbd-config:\n  cleanmyarr-config:\n```\n\n---\n### Configuration\n\n#### Configure Plex\n\n- Open Plex at http://192.168.0.195:32400/web\n- Configure as it asks for the first time adding /tvshows and /movies\n\n#### Configure Tautulli\n\n- Open Tautulli at http://192.168.0.195:8181\n\n#### Configure Jellyfin\n\n- Open Jellyfin at http://192.168.0.195:8096\n- Configure as it asks for first time.\n- Add media library folder and choose /data/movies/\n\n#### Configure EmbyStat\n\n- Open EmbyStat at http://192.168.0.195:6555\n- Configure as it asks for first time.\n- Server: at 172.25.0.4 URL: https://jellyfin.jalubru.duckdns.org\n- API: [Jellyfin API](https://jellyfin.jalubru.duckdns.org/web/index.html#!/apikeys.html)\n\n#### Configure Radarr\n\n- Open Radarr at http://192.168.0.195:7878\n- Settings --> Media Management --> Check mark \"Movies deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a movie** (After Prowlarr is configured)\n\n- Movies --> Search for a movie --> Add Root folder (/downloads) --> Quality profile --> Add movie\n- Go to qBittorrent (http://192.168.0.195:5080) and see if movie is getting downloaded.\n\n#### Configure Sonarr\n\n- Open Sonarr at http://192.168.0.195:8989\n- Settings --> Media Management --> Check mark \"Shows deleted from disk are automatically unmonitored in Radarr\" under File management section --> Save\n- Settings --> Download clients --> Transmission --> Add Host (qbittorrent) and port (5080) --> Username and password --> Test --> Save **Note: If VPN is enabled, then qbittorrent is reachable on vpn's service name**\n- Settings --> General --> Enable advance setting --> Select Authentication and add username and password\n- Indexer will get automatically added during configuration of Prowlarr. See 'Configure Prowlarr' section.\n\n**Add a show** (After Prowlarr is configured)\n\n- Shows --> Search for a show --> Add Root folder (/downloads) --> Quality profile --> Add show\n- Go to qBittorrent (http://192.168.0.195:5080) and see if show is getting downloaded.\n\n#### Configure Prowlarr\n\n- Open Prowlarr at http://192.168.0.195:9696\n- Settings --> General --> Authentications --> Select Authentication and add username and password\n- Add Indexers, Indexers --> Add Indexer --> Search for indexer --> Choose base URL --> Test and Save\n- Add application, Settings --> Apps --> Add application --> Choose Sonarr or Radarr or any apps to link --> Prowlarr server (http://192.168.0.195:9696) --> Radarr (http://192.168.0.195:7878) or Sonarr (http://192.168.0.195:8989)--> API Key --> Test and Save\n- This will add indexers in respective apps automatically.\n\n#### Configure Bazarr\nhttps://wiki.bazarr.media\n\n- Open Bazarr at http://192.168.0.195:6767\n- Go to Settings -->Sonarr or Radarr --> Address: 192.168.0.195, \n- Create Account at https://www.opensubtitles.org, https://www.opensubtitles.com, \n\n---\n### Nginx Configuration\n\n- Get inside Nginx container\n- `cd /etc/nginx/conf.d`\n- Add proxies for all tools.\n\n`docker cp nginx.conf nginx:/etc/nginx/conf.d/default.conf && docker exec -it nginx nginx -s reload`\n- Close ports of other tools in firewall/security groups except port 80 and 443.\n\n#### Apply SSL in Nginx\n\n- Open port 80 and 443.\n- Get inside Nginx container and install certbot and certbot-nginx `apk add certbot certbot-nginx`\n- Add URL in server block. e.g. `server_name  localhost armdev.navratangupta.in;` in /etc/nginx/conf.d/default.conf\n- Run `certbot --nginx` and provide details asked.\n\n#### Jellyfin Nginx proxy\n\n- Add base URL, Admin Dashboard -> Networking -> Base URL (/jellyfin)\n- Add below config in Ngix config\n\n```\n location /jellyfin {\n        return 302 $scheme://$host/jellyfin/;\n    }\n\n    location /jellyfin/ {\n\n        proxy_pass http://jellyfin:8096/jellyfin/;\n\n        proxy_pass_request_headers on;\n\n        proxy_set_header Host $host;\n\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Forwarded-Host $http_host;\n\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection $http_connection;\n\n        # Disable buffering when the nginx proxy gets very resource heavy upon streaming\n        proxy_buffering off;\n    }\n```\n\n- Restart containers\n\n#### Radarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/radarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://radarr:7878;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n#### Sonarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/sonarr)\n- Add below proxy in nginx configuration\n\n```\nlocation /radarr {\n    proxy_pass http://sonarr:8989;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n#### Prowlarr Nginx reverse proxy\n\n- Settings --> General --> URL Base --> Add base (/prowlarr)\n- Add below proxy in nginx configuration\n\nThis may need to change configurations in indexers and base in URL.\n\n```\nlocation /prowlarr {\n    proxy_pass http://prowlarr:9696; # Comment this line if VPN is enabled.\n    # proxy_pass http://vpn:9696; # Uncomment this line if VPN is enabled.\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_http_version 1.1;\n    proxy_set_header Upgrade $http_upgrade;\n    proxy_set_header Connection $http_connection;\n  }\n```\n\n- Restart containers.\n\n**Note: If VPN is enabled, then Prowlarr is reachable on vpn's service name**\n\n---\n>[[00 Homelab|home]]"
   },
-  "nginxproxymanager": {
-    "serviceId": "nginxproxymanager",
-    "sourceFile": "Nginx Proxy Manager.md",
-    "title": "Nginx Proxy Manager",
+  "traefik": {
+    "serviceId": "traefik",
+    "sourceFile": "Traefik.md",
+    "title": "Traefik",
     "frontmatter": {
       "tags": [
         "Homelab/Apps"
       ],
       "aliases": [
-        "Nginx Proxy Manager",
-        "nginx"
+        "Traefik"
       ],
-      "ITname": "Nginx Proxy Manager",
+      "ITname": "Traefik",
       "ITcategory": "Reverse Proxy",
       "ITmachine": [
-        "Raspberry Pi"
+        "OptiPi"
       ],
       "ITinstalltype": "docker",
       "ITstatus": [
         "installed"
+      ],
+      "priority": [
+        "\"3\""
+      ],
+      "comments": "Reverse proxy + TLS termination for every *.local.jalubru.com service",
+      "url": [
+        "http://192.168.0.191",
+        "https://traefik.local.jalubru.com"
       ]
     },
-    "summary": "Nginx Proxy Manager See also - Nextcloud See also - Homeassistant",
+    "summary": "Traefik Traefik Reverse proxy in front of every service on the OptiPi docker LXC (via Docker labels) and, through the static `config.yml` file provider below, in front of several services that live on other hosts too (Pr",
     "links": [
       {
-        "label": "Nginx Proxy Manager",
-        "url": "https://nginxproxymanager.com/"
+        "label": "Reddit - Traefik with multiple lxcs",
+        "url": "https://www.reddit.com/r/Traefik/s/sUgxpqsvhe"
       },
       {
-        "label": "https://nginxproxymanager.com/guide/",
-        "url": "https://nginxproxymanager.com/guide/"
+        "label": "Traefik 3 and FREE Wildcard Certificates with Docker | Techno Tim",
+        "url": "https://technotim.live/posts/traefik-3-docker-certificates/"
       },
       {
-        "label": "portainer.io",
-        "url": "http://serverpi.local:9000/#!/2/docker/stacks"
+        "label": "Traefik 3 and FREE Wildcard Certificates with Docker - YouTube",
+        "url": "https://www.youtube.com/watch?v=n1vOfdz5Nm8"
       },
       {
-        "label": "github.com/christianlempa/videos/tree/main/nginxproxymanager-tutorial",
-        "url": "https://github.com/christianlempa/videos/tree/main/nginxproxymanager-tutorial"
+        "label": "Traefik + Docker - Christian Lempa - YouTube",
+        "url": "https://www.youtube.com/watch?v=NzSdNoR-JPo"
       },
       {
-        "label": "notthebe.ee/blog/easy-ssl-in-homelab-dns01/",
-        "url": "https://notthebe.ee/blog/easy-ssl-in-homelab-dns01/"
+        "label": "Is this the BEST Reverse Proxy for Docker? // Traefik Tutorial - YouTube",
+        "url": "https://www.youtube.com/watch?v=wLrmmh1eI94"
       },
       {
-        "label": "www.youtube.com/watch?v=qlcVx-k-02E&t",
-        "url": "https://www.youtube.com/watch?v=qlcVx-k-02E&t"
+        "label": "boilerplates/docker-compose/traefik at main · ChristianLempa/boilerplates · GitHub",
+        "url": "https://github.com/ChristianLempa/boilerplates/tree/main/docker-compose/traefik"
       },
       {
-        "label": "github.com/chrisbeardy/nextcloud-docker-raspberrypi-tutorial",
-        "url": "https://github.com/chrisbeardy/nextcloud-docker-raspberrypi-tutorial"
+        "label": "Put Wildcard Certificates and SSL on EVERYTHING - Traefik + Portainer Tutorial - YouTube",
+        "url": "https://www.youtube.com/watch?v=liV3c9m_OX8"
       },
       {
-        "label": "192.168.0.195:81/",
-        "url": "http://192.168.0.195:81/"
+        "label": "Put Wildcard Certificates and SSL on EVERYTHING | Techno Tim",
+        "url": "https://technotim.live/posts/traefik-portainer-ssl/"
+      },
+      {
+        "label": "techno-tim.github.io/reference\\_files/traefik-portainer-ssl/traefik at master · techno-tim/techno-tim.github.io · GitHub",
+        "url": "https://github.com/techno-tim/techno-tim.github.io/tree/master/reference_files/traefik-portainer-ssl/traefik"
+      },
+      {
+        "label": "Cloudflare API Tokens",
+        "url": "https://dash.cloudflare.com/profile/api-tokens"
       }
     ],
     "codeBlocks": [
       {
-        "language": "bash",
-        "code": "docker network create proxy\nmkdir /home/server/apps/nginxproxymanager/{data,letsencrypt}"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano /home/server/apps/nginxproxymanager/docker-compose.yaml"
+        "language": "yaml",
+        "code": "    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.APP.rule=Host(`APP.local.jalubru.com`)\"\n      - \"traefik.http.routers.APP.entrypoints=https\"\n      - \"traefik.http.routers.APP.tls=true\"\n      - \"traefik.http.services.APP.loadbalancer.server.port=PORT\""
       },
       {
         "language": "yaml",
-        "code": "networks:\n  proxy:\n    external: true\n\nservices:\n  nginxproxymanager:\n    image: \"jc21/nginx-proxy-manager:latest\"\n    container_name: nginxproxymanager \n    restart: always\n    ports:\n      - \"80:80\"\n      - \"443:443\"\n      - \"81:81\"\n    environment:\n      DB_SQLITE_FILE: \"/data/database.sqlite\"\n      DISABLE_IPV6: \"true\"\n    volumes:\n      - /home/server/apps/nginxproxymanager/data:/data\n      - /home/server/apps/nginxproxymanager/letsencrypt:/etc/letsencrypt\n    networks:\n      - proxy"
+        "code": "    networks:\n      proxy:\n        external: true"
       },
       {
         "language": "bash",
-        "code": "sudo docker compose -f /home/server/apps/nginxproxymanager/docker-compose.yaml up -d"
-      },
-      {
-        "language": "text",
-        "code": "Email:    admin@example.com\nPassword: changeme"
+        "code": "sudo mkdir -p /home/apps/traefik/data/"
       },
       {
         "language": "bash",
-        "code": "sudo mkdir /home/server/apps/nginxproxymanager\nsudo mkdir /media/wd2001ext4"
+        "code": "sudo touch /home/apps/traefik/{cf_api_token.txt,docker-compose.yaml} && sudo touch /home/apps/traefik/data/{acme.json,config.yml,traefik.yml} && sudo chmod 600 /home/apps/traefik/data/acme.json"
       },
       {
         "language": "bash",
-        "code": "cd /home/server/apps/nginxproxymanager"
-      },
-      {
-        "language": "bash",
-        "code": "sudo nano docker-compose.yaml"
+        "code": "sudo nano /home/apps/traefik/data/traefik.yml"
       },
       {
         "language": "yaml",
-        "code": "version: '2.2' \n\nnetworks:\n  frontend:\n    external:\n      name: proxy\n  backend:\n  \nservices:\n##  nginxproxymanager:\n##    image: 'jc21/nginx-proxy-manager:latest'\n##    container_name: nginxproxymanager \n##    restart: unless-stopped \n##    ports:\n##      - '80:80' \n##      - '81:81' \n##      - '443:443' \n##    environment:\n      # Mysql/Maria connection parameters:\n##      - DB_MYSQL_HOST: \"database\"\n##      - DB_MYSQL_PORT: 3306\n##      - DB_MYSQL_USER: \"npm\"\n##      - DB_MYSQL_PASSWORD: \"[REDACTED-DB-PASSWORD]\"\n##      - DB_MYSQL_NAME: \"npm\"\n##      - DISABLE_IPV6: 'true'\n##    volumes: \n##      - ./nginx/data:/data \n##      - ./nginx/letsencrypt:/etc/letsencrypt\n##    depends_on:\n##      - database\n\n  nextcloud:\n    image: lscr.io/linuxserver/nextcloud:latest\n    container_name: nextcloud \n    environment: \n      - PUID=1000 \n      - PGID=1000 \n      - TZ=Europe/Riga \n      - MYSQL_HOST=nextcloud-db\n##      - MYSQL_PORT=3306\n      - MYSQL_USER=nextcloud\n      - MYSQL_PASSWORD=[REDACTED-DB-PASSWORD]\n      - MYSQL_DATABASE=nextcloud\n      - PHP_UPLOAD_LIMIT=10G\n      - PHP_MEMORY_LIMIT=512M\n    volumes: \n      - ./nextcloud/appdata:/config \n      - ./nextcloud/data:/data \n    restart: unless-stopped \n\n  jellyfin: \n    image: lscr.io/linuxserver/jellyfin:latest \n    container_name: jellyfin \n    environment: \n      - PUID=1000 \n      - PGID=1000 \n      - TZ=Europe/Riga \n    volumes: \n      - ./jellyfin/config:/config \n      - ./jellyfin/tvshows:/data/tvshows \n      - ./jellyfin/movies:/data/movies \n    restart: unless-stopped"
-      },
-      {
-        "language": "yaml",
-        "code": "version: '3.8'\nservices:\n  app:\n    image: 'jc21/nginx-proxy-manager:latest'\n    restart: unless-stopped\n    ports:\n      - '80:80' # Public HTTP Port\n      - '443:443' # Public HTTPS Port\n      - '81:81' # Admin Web Port\n    environment:\n      DB_MYSQL_HOST: \"db\"\n      DB_MYSQL_PORT: 3306\n      DB_MYSQL_USER: \"npm\"\n      DB_MYSQL_PASSWORD: \"npm\"\n      DB_MYSQL_NAME: \"npm\"\n      DISABLE_IPV6: 'true'\n    volumes:\n      - ./data:/data\n      - ./letsencrypt:/etc/letsencrypt\n    depends_on:\n      - db\n  db:\n    image: 'jc21/mariadb-aria:latest'\n    restart: unless-stopped\n    environment:\n      MYSQL_ROOT_PASSWORD: 'npm'\n      MYSQL_DATABASE: 'npm'\n      MYSQL_USER: 'npm'\n      MYSQL_PASSWORD: 'npm'\n    volumes:\n      - ./mysql:/var/lib/mysql"
+        "code": "api:\n  dashboard: true\n  debug: true\nentryPoints:\n  http:\n    address: \":80\"\n    http:\n      redirections:\n        entryPoint:\n          to: https\n          scheme: https\n  https:\n    address: \":443\"\nserversTransport:\n  insecureSkipVerify: true\nproviders:\n  docker:\n    endpoint: \"unix:///var/run/docker.sock\"\n    exposedByDefault: false\n  file:\n    filename: /config.yml\n    watch: true\ncertificatesResolvers:\n  cloudflare:\n    acme:\n      email: jalu@bruderek.de\n      storage: acme.json\n      caServer: https://acme-v02.api.letsencrypt.org/directory # prod (default) — currently active\n      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory # staging\n      dnsChallenge:\n        provider: cloudflare\n        #disablePropagationCheck: true # uncomment this if you have issues pulling certificates through cloudflare, By setting this flag to true disables the need to wait for the propagation of the TXT record to all authoritative name servers.\n        #delayBeforeCheck: 60s # uncomment along with disablePropagationCheck if needed to ensure the TXT record is ready before verification is attempted \n        resolvers:\n          - \"1.1.1.1:53\"\n          - \"1.0.0.1:53\""
       },
       {
         "language": "bash",
-        "code": "docker compose up -d"
+        "code": "sudo docker network create proxy"
+      },
+      {
+        "language": "bash",
+        "code": "sudo nano /home/apps/traefik/docker-compose.yaml"
+      },
+      {
+        "language": "yaml",
+        "code": "services:\n  traefik:\n    image: traefik:latest\n    container_name: traefik\n    restart: unless-stopped\n    security_opt:\n      - no-new-privileges:true\n    networks:\n      - proxy\n    ports:\n      - 80:80\n      - 443:443\n      # - 443:443/tcp # Uncomment if you want HTTP3\n      # - 443:443/udp # Uncomment if you want HTTP3\n    environment:\n##      CF_DNS_API_TOKEN_FILE: /run/secrets/cf_api_token # note using _FILE for docker secrets\n      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN} # if using .env\n      TRAEFIK_DASHBOARD_CREDENTIALS: ${TRAEFIK_DASHBOARD_CREDENTIALS}\n    secrets:\n      - cf_api_token\n    env_file: .env # use .env\n    volumes:\n      - /etc/localtime:/etc/localtime:ro\n      - /var/run/docker.sock:/var/run/docker.sock:ro\n      - /home/apps/traefik/data/traefik.yml:/traefik.yml:ro\n      - /home/apps/traefik/data/acme.json:/acme.json\n      - /home/apps/traefik/data/config.yml:/config.yml:ro\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.traefik.entrypoints=http\"\n      - \"traefik.http.routers.traefik.rule=Host(`traefik.local.jalubru.com`)\"\n      - \"traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_DASHBOARD_CREDENTIALS}\"\n      - \"traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https\"\n      - \"traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https\"\n      - \"traefik.http.routers.traefik.middlewares=traefik-https-redirect\"\n      - \"traefik.http.routers.traefik-secure.entrypoints=https\"\n      - \"traefik.http.routers.traefik-secure.rule=Host(`traefik.local.jalubru.com`)\"\n      - \"traefik.http.routers.traefik-secure.middlewares=traefik-auth\"\n      - \"traefik.http.routers.traefik-secure.tls=true\"\n      - \"traefik.http.routers.traefik-secure.tls.certresolver=cloudflare\"\n      - \"traefik.http.routers.traefik-secure.tls.domains[0].main=local.jalubru.com\"\n      - \"traefik.http.routers.traefik-secure.tls.domains[0].sans=*.local.jalubru.com\"\n      - \"traefik.http.routers.traefik-secure.service=api@internal\"\n\nsecrets:\n  cf_api_token:\n    file: /home/apps/traefik/data/cloudflare.env\n\nnetworks:\n  proxy:\n    external: true"
+      },
+      {
+        "language": "bash",
+        "code": "sudo nano /home/apps/traefik/cf_api_token.txt"
+      },
+      {
+        "language": "bash",
+        "code": "echo \"CLOUDFLARE_DNS_API_TOKEN=\" | sudo tee /home/apps/traefik/data/cloudflare.env > /dev/null"
+      },
+      {
+        "language": "bash",
+        "code": "sudo apt update\nsudo apt install apache2-utils"
+      },
+      {
+        "language": "bash",
+        "code": "echo $(htpasswd -nB admin) | sed -e s/\\\\$/\\\\$\\\\$/g"
+      },
+      {
+        "language": "bash",
+        "code": "sudo nano /home/apps/traefik/.env"
+      },
+      {
+        "language": "bash",
+        "code": "TRAEFIK_DASHBOARD_CREDENTIALS="
+      },
+      {
+        "language": "bash",
+        "code": "sudo docker compose -f /home/apps/traefik/docker-compose.yaml up -d"
+      },
+      {
+        "language": "bash",
+        "code": "sudo docker compose -f /home/apps/traefik/docker-compose.yaml up -d --force-recreate"
+      },
+      {
+        "language": "Bash",
+        "code": "sudo nano /home/apps/traefik/data/config.yml"
+      },
+      {
+        "language": "yaml",
+        "code": "http:\n #region routers\n  routers:\n    proxmox:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`proxmox.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: proxmox\n    pihole:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`pihole.local.jalubru.com`)\"\n      middlewares:\n        #- redirectregex-pihole\n        - default-headers\n        #- addprefix-pihole\n        - https-redirectscheme\n      tls: {}\n      service: pihole\n    portainer:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`portainer.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: portainer\n    homeassistant:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`ha.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: homeassistant\n    plex:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`plex.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: plex\n    radarr:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`radarr.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: radarr\n    sonarr:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`sonarr.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: sonarr\n    prowlarr:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`prowlarr.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: prowlarr\n    bazarr:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`bazarr.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: bazarr\n    qbittorrent:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`qbittorrent.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: qbittorrent\n    sabnzbd:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`sabnzbd.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: sabnzbd\n    tautulli:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`tautulli.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: tautulli\n#endregion\n#region services\n  services:\n    proxmox:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.192:8006\"\n        passHostHeader: true\n    pihole:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.190:80\"\n        passHostHeader: true\n    portainer:\n      loadBalancer:\n        servers:\n          - url: \"http://portainer:9000\"\n    homeassistant:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.193:8123\"\n        passHostHeader: true\n    plex:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.16:32400\"\n        passHostHeader: true\n    radarr:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:7878\"\n        passHostHeader: true\n    sonarr:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:8989\"\n        passHostHeader: true\n    prowlarr:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:9696\"\n        passHostHeader: true\n    bazarr:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:6767\"\n        passHostHeader: true\n    qbittorrent:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:5080\"\n        passHostHeader: true\n    sabnzbd:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:8070\"\n        passHostHeader: true\n    tautulli:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:8181\"\n        passHostHeader: true\n#endregion\n  middlewares:\n    addprefix-pihole:\n      addPrefix:\n        prefix: \"/admin\"\n    https-redirectscheme:\n      redirectScheme:\n        scheme: https\n        permanent: true\n    redirectregex-pihole:\n      redirectRegex:\n        regex: \"/admin/(.*)\"\n        replacement: /\n    default-headers:\n      headers:\n        frameDeny: true\n        browserXssFilter: true\n        contentTypeNosniff: true\n        forceSTSHeader: true\n        stsIncludeSubdomains: true\n        stsPreload: true\n        stsSeconds: 15552000\n        customFrameOptionsValue: SAMEORIGIN\n        customRequestHeaders:\n          X-Forwarded-Proto: https\n\n    default-whitelist:\n      ipAllowList:\n        sourceRange:\n        - \"10.0.0.0/8\"\n        - \"192.168.0.0/16\"\n        - \"172.16.0.0/12\"\n\n    secured:\n      chain:\n        middlewares:\n        - default-whitelist\n        - default-headers"
+      },
+      {
+        "language": "yaml",
+        "code": "http:\n #region routers\n  routers:\n    proxmox:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`proxmox.local.example.com`)\" \n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: proxmox\n    pihole:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`pihole.local.example.com`)\"\n      middlewares:\n        - redirectregex-pihole\n        - default-headers\n        - addprefix-pihole\n        - https-redirectscheme\n      tls: {}\n      service: pihole\n    homebridge:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`homebridge.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: homebridge\n    homeassistant:\n      # For Homeassistant config, check: https://www.home-assistant.io/integrations/http/#reverse-proxies\n      # This relies on Homeassistant using http. No certs are needed in the Homeassistant config.\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`homeassistant.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: homeassistant\n    syncthing:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`syncthing.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: syncthing\n    truenas:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`truenas.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: truenas\n    plex:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`plex.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: plex\n    minio:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`minio.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: minio\n    rancher:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`rancher.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: rancher\n    idrac:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`idrac.local.example.com`)\"\n      middlewares:\n        - idrac\n        - https-redirectscheme\n      tls: {}\n      service: idrac\n    idrac-console:\n      entryPoints:\n        - \"idrac\" # REQUIRED for iDRAC virtual console: Create a new TCP entry point in traefik on port 5900\n      rule: \"Host(`idrac.local.example.com`)\"\n      middlewares:\n        - idrac\n        - https-redirectscheme\n      tls: {}\n      service: idrac-console\n    opnsense:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`opnsense.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: opnsense\n    pterodactyl:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`pterodactyl.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: pterodactyl\n    openmediavault:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`openmediavault.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: openmediavault\n\n#endregion\n#region services\n  services:\n    proxmox:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.100:8006\"\n        passHostHeader: true\n    pihole:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.101:80\"\n        passHostHeader: true\n    homebridge:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.102:10999\"\n        passHostHeader: true\n    homeassistant:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.102:10999\"\n        passHostHeader: true\n    syncthing:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.103:8384\"\n        passHostHeader: true\n    truenas:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.104\"\n        passHostHeader: true\n    plex:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.105:32400\"\n        passHostHeader: true\n    minio:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.106:9000/\"\n        passHostHeader: true\n    rancher:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.107\"\n        passHostHeader: true\n    idrac:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.108\"\n        passHostHeader: true\n    idrac-console:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.108:5900\"\n        passHostHeader: true\n    opnsense:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.109\"\n        passHostHeader: true\n    pterodactyl:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.110:80\"\n        passHostHeader: true\n    openmediavault:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.111:80\"\n        passHostHeader: true\n#endregion\n  middlewares:\n    addprefix-pihole:\n      addPrefix:\n        prefix: \"/admin\"\n    https-redirectscheme:\n      redirectScheme:\n        scheme: https\n        permanent: true\n    redirectregex-pihole:\n      redirectRegex:\n        regex: \"/admin/(.*)\"\n        replacement: /\n\n    default-headers:\n      headers:\n        frameDeny: true\n        browserXssFilter: true\n        contentTypeNosniff: true\n        forceSTSHeader: true\n        stsIncludeSubdomains: true\n        stsPreload: true\n        stsSeconds: 15552000\n        customFrameOptionsValue: SAMEORIGIN\n        customRequestHeaders:\n          X-Forwarded-Proto: https\n\n    idrac:\n      headers:\n        frameDeny: true\n        browserXssFilter: true\n        forceSTSHeader: true\n        stsIncludeSubdomains: true\n        stsSeconds: 15552000\n        customFrameOptionsValue: SAMEORIGIN\n        customRequestHeaders:\n          X-Forwarded-Proto: https\n\n    default-whitelist:\n      ipAllowList:\n        sourceRange:\n        - \"10.0.0.0/8\"\n        - \"192.168.0.0/16\"\n        - \"172.16.0.0/12\"\n\n    secured:\n      chain:\n        middlewares:\n        - default-whitelist\n        - default-headers"
       }
     ],
-    "markdown": "## Nginx Proxy Manager\n\n---\nhttps://github.com/christianlempa/videos/tree/main/nginxproxymanager-tutorial\nhttps://notthebe.ee/blog/easy-ssl-in-homelab-dns01/\nhttps://www.youtube.com/watch?v=qlcVx-k-02E&t\n---\n\n[[Nextcloud|See also - Nextcloud]]\n[[Homeassistant|See also - Homeassistant]]\n[[Jellyfin|See also - Jellyfin]] or [[Mediaserver]]\n\n### Chrisbeard Tutorial\nhttps://github.com/chrisbeardy/nextcloud-docker-raspberrypi-tutorial\n\n#### Setting up the reverse proxy stack\n\nWe are going to use [Nginx Proxy Manager](https://nginxproxymanager.com/) for our reverse proxy, but as we are only running on a raspberry pi will setup using sqlite and not a full SQL database.\n\n```bash\ndocker network create proxy\nmkdir /home/server/apps/nginxproxymanager/{data,letsencrypt}\n```\n\n```bash\nsudo nano /home/server/apps/nginxproxymanager/docker-compose.yaml\n```\n\n```yaml\nnetworks:\n  proxy:\n    external: true\n\nservices:\n  nginxproxymanager:\n    image: \"jc21/nginx-proxy-manager:latest\"\n    container_name: nginxproxymanager \n    restart: always\n    ports:\n      - \"80:80\"\n      - \"443:443\"\n      - \"81:81\"\n    environment:\n      DB_SQLITE_FILE: \"/data/database.sqlite\"\n      DISABLE_IPV6: \"true\"\n    volumes:\n      - /home/server/apps/nginxproxymanager/data:/data\n      - /home/server/apps/nginxproxymanager/letsencrypt:/etc/letsencrypt\n    networks:\n      - proxy\n```\n\nCreate container:\n\n```bash\nsudo docker compose -f /home/server/apps/nginxproxymanager/docker-compose.yaml up -d\n```\n\nNavigate to `http://192.168.0.195:81` and enter the default credentials:\n\n```\nEmail:    admin@example.com\nPassword: changeme\n```\n\nYou will immediately be prompted to change these.\n\n---\n\n### Set up Nginx Proxy Manager\n\ncreate directory for nginxproxymanager\n```bash\nsudo mkdir /home/server/apps/nginxproxymanager\nsudo mkdir /media/wd2001ext4\n```\n\ngo to folder\n```bash\ncd /home/server/apps/nginxproxymanager\n```\n\nCreate a new file `docker-compose.yaml` file, please refer to the nginxproxymanager documentation: [https://nginxproxymanager.com/guide/](https://nginxproxymanager.com/guide/).\n```bash\nsudo nano docker-compose.yaml\n```\n\n```yaml\nversion: '2.2' \n\nnetworks:\n  frontend:\n    external:\n      name: proxy\n  backend:\n  \nservices:\n##  nginxproxymanager:\n##    image: 'jc21/nginx-proxy-manager:latest'\n##    container_name: nginxproxymanager \n##    restart: unless-stopped \n##    ports:\n##      - '80:80' \n##      - '81:81' \n##      - '443:443' \n##    environment:\n      # Mysql/Maria connection parameters:\n##      - DB_MYSQL_HOST: \"database\"\n##      - DB_MYSQL_PORT: 3306\n##      - DB_MYSQL_USER: \"npm\"\n##      - DB_MYSQL_PASSWORD: \"[REDACTED-DB-PASSWORD]\"\n##      - DB_MYSQL_NAME: \"npm\"\n##      - DISABLE_IPV6: 'true'\n##    volumes: \n##      - ./nginx/data:/data \n##      - ./nginx/letsencrypt:/etc/letsencrypt\n##    depends_on:\n##      - database\n\n  nextcloud:\n    image: lscr.io/linuxserver/nextcloud:latest\n    container_name: nextcloud \n    environment: \n      - PUID=1000 \n      - PGID=1000 \n      - TZ=Europe/Riga \n      - MYSQL_HOST=nextcloud-db\n##      - MYSQL_PORT=3306\n      - MYSQL_USER=nextcloud\n      - MYSQL_PASSWORD=[REDACTED-DB-PASSWORD]\n      - MYSQL_DATABASE=nextcloud\n      - PHP_UPLOAD_LIMIT=10G\n      - PHP_MEMORY_LIMIT=512M\n    volumes: \n      - ./nextcloud/appdata:/config \n      - ./nextcloud/data:/data \n    restart: unless-stopped \n\n  jellyfin: \n    image: lscr.io/linuxserver/jellyfin:latest \n    container_name: jellyfin \n    environment: \n      - PUID=1000 \n      - PGID=1000 \n      - TZ=Europe/Riga \n    volumes: \n      - ./jellyfin/config:/config \n      - ./jellyfin/tvshows:/data/tvshows \n      - ./jellyfin/movies:/data/movies \n    restart: unless-stopped\n\n```\n\n**Example Docker-Compose File**:\n```yaml\nversion: '3.8'\nservices:\n  app:\n    image: 'jc21/nginx-proxy-manager:latest'\n    restart: unless-stopped\n    ports:\n      - '80:80' # Public HTTP Port\n      - '443:443' # Public HTTPS Port\n      - '81:81' # Admin Web Port\n    environment:\n      DB_MYSQL_HOST: \"db\"\n      DB_MYSQL_PORT: 3306\n      DB_MYSQL_USER: \"npm\"\n      DB_MYSQL_PASSWORD: \"npm\"\n      DB_MYSQL_NAME: \"npm\"\n      DISABLE_IPV6: 'true'\n    volumes:\n      - ./data:/data\n      - ./letsencrypt:/etc/letsencrypt\n    depends_on:\n      - db\n  db:\n    image: 'jc21/mariadb-aria:latest'\n    restart: unless-stopped\n    environment:\n      MYSQL_ROOT_PASSWORD: 'npm'\n      MYSQL_DATABASE: 'npm'\n      MYSQL_USER: 'npm'\n      MYSQL_PASSWORD: 'npm'\n    volumes:\n      - ./mysql:/var/lib/mysql\n```\n\nStart the Nginx Proxy Manager\n```bash\ndocker compose up -d\n```\n\nLogin to the web UI of NGINX proxy manager\n\nNow we can log in to the web UI. Simply use your browser to connect to your server by using the IP address or an FQDN and connect on port `81`. Log in with the username `admin@example.com` and the password `changeme`. Next, you should change your username and password, and that’s it!\n\n---\n### Deployment via Portainer\n\n1. Go to [portainer.io](http://serverpi.local:9000/#!/2/docker/stacks)\n2. Click on \"Stacks\"\n3. \"\"+ Add stack\"\n4. Name: \"nginxproxymanager\"\n5. Insert `docker-compose` file into Web editor (change version 3 to version: '2')\n6. Click \"Deploy this stack\"\n7. Go to http://192.168.0.195:81/ \n\n---\n>[[00 Homelab|home]]"
+    "markdown": "## Traefik\n\nReverse proxy in front of every service on the OptiPi docker LXC (via Docker labels) and, through the static `config.yml` file provider below, in front of several services that live on other hosts too (Proxmox, Pi-hole, Home Assistant, Plex, and the whole arr-stack on the Raspberry Pi). Terminates TLS with Let's Encrypt wildcard certs via the Cloudflare DNS challenge.\n\nsee also [[Teleport]], [[Tailscale]]\n\n---\n\n[Reddit - Traefik with multiple lxcs](https://www.reddit.com/r/Traefik/s/sUgxpqsvhe)\n\nBEST & NEW:\n[Traefik 3 and FREE Wildcard Certificates with Docker | Techno Tim](https://technotim.live/posts/traefik-3-docker-certificates/)\n[Traefik 3 and FREE Wildcard Certificates with Docker - YouTube](https://www.youtube.com/watch?v=n1vOfdz5Nm8)\nAND\n[Traefik + Docker - Christian Lempa - YouTube](https://www.youtube.com/watch?v=NzSdNoR-JPo)\n\nSecurity see [[CrowdSec]]\n\n[Is this the BEST Reverse Proxy for Docker? // Traefik Tutorial - YouTube](https://www.youtube.com/watch?v=wLrmmh1eI94)\n[boilerplates/docker-compose/traefik at main · ChristianLempa/boilerplates · GitHub](https://github.com/ChristianLempa/boilerplates/tree/main/docker-compose/traefik)\n\nOr this\n[Put Wildcard Certificates and SSL on EVERYTHING - Traefik + Portainer Tutorial - YouTube](https://www.youtube.com/watch?v=liV3c9m_OX8)\n[Put Wildcard Certificates and SSL on EVERYTHING | Techno Tim](https://technotim.live/posts/traefik-portainer-ssl/)\n[techno-tim.github.io/reference\\_files/traefik-portainer-ssl/traefik at master · techno-tim/techno-tim.github.io · GitHub](https://github.com/techno-tim/techno-tim.github.io/tree/master/reference_files/traefik-portainer-ssl/traefik)\n\n### Default Labels\n```yaml\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.APP.rule=Host(`APP.local.jalubru.com`)\"\n      - \"traefik.http.routers.APP.entrypoints=https\"\n      - \"traefik.http.routers.APP.tls=true\"\n      - \"traefik.http.services.APP.loadbalancer.server.port=PORT\"\n```\n```yaml\n    networks:\n      proxy:\n        external: true\n```\n\n### Docker\n\n```bash\nsudo mkdir -p /home/apps/traefik/data/\n```\n\n```bash\nsudo touch /home/apps/traefik/{cf_api_token.txt,docker-compose.yaml} && sudo touch /home/apps/traefik/data/{acme.json,config.yml,traefik.yml} && sudo chmod 600 /home/apps/traefik/data/acme.json\n```\n\n#### Traefik.yaml\n\n```bash\nsudo nano /home/apps/traefik/data/traefik.yml\n```\n\n```yaml\napi:\n  dashboard: true\n  debug: true\nentryPoints:\n  http:\n    address: \":80\"\n    http:\n      redirections:\n        entryPoint:\n          to: https\n          scheme: https\n  https:\n    address: \":443\"\nserversTransport:\n  insecureSkipVerify: true\nproviders:\n  docker:\n    endpoint: \"unix:///var/run/docker.sock\"\n    exposedByDefault: false\n  file:\n    filename: /config.yml\n    watch: true\ncertificatesResolvers:\n  cloudflare:\n    acme:\n      email: jalu@bruderek.de\n      storage: acme.json\n      caServer: https://acme-v02.api.letsencrypt.org/directory # prod (default) — currently active\n      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory # staging\n      dnsChallenge:\n        provider: cloudflare\n        #disablePropagationCheck: true # uncomment this if you have issues pulling certificates through cloudflare, By setting this flag to true disables the need to wait for the propagation of the TXT record to all authoritative name servers.\n        #delayBeforeCheck: 60s # uncomment along with disablePropagationCheck if needed to ensure the TXT record is ready before verification is attempted \n        resolvers:\n          - \"1.1.1.1:53\"\n          - \"1.0.0.1:53\"\n```\n\n#### Docker compose\n\n```bash\nsudo docker network create proxy\n```\n\n```bash\nsudo nano /home/apps/traefik/docker-compose.yaml\n```\n\n```yaml\nservices:\n  traefik:\n    image: traefik:latest\n    container_name: traefik\n    restart: unless-stopped\n    security_opt:\n      - no-new-privileges:true\n    networks:\n      - proxy\n    ports:\n      - 80:80\n      - 443:443\n      # - 443:443/tcp # Uncomment if you want HTTP3\n      # - 443:443/udp # Uncomment if you want HTTP3\n    environment:\n##      CF_DNS_API_TOKEN_FILE: /run/secrets/cf_api_token # note using _FILE for docker secrets\n      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN} # if using .env\n      TRAEFIK_DASHBOARD_CREDENTIALS: ${TRAEFIK_DASHBOARD_CREDENTIALS}\n    secrets:\n      - cf_api_token\n    env_file: .env # use .env\n    volumes:\n      - /etc/localtime:/etc/localtime:ro\n      - /var/run/docker.sock:/var/run/docker.sock:ro\n      - /home/apps/traefik/data/traefik.yml:/traefik.yml:ro\n      - /home/apps/traefik/data/acme.json:/acme.json\n      - /home/apps/traefik/data/config.yml:/config.yml:ro\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.traefik.entrypoints=http\"\n      - \"traefik.http.routers.traefik.rule=Host(`traefik.local.jalubru.com`)\"\n      - \"traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_DASHBOARD_CREDENTIALS}\"\n      - \"traefik.http.middlewares.traefik-https-redirect.redirectscheme.scheme=https\"\n      - \"traefik.http.middlewares.sslheader.headers.customrequestheaders.X-Forwarded-Proto=https\"\n      - \"traefik.http.routers.traefik.middlewares=traefik-https-redirect\"\n      - \"traefik.http.routers.traefik-secure.entrypoints=https\"\n      - \"traefik.http.routers.traefik-secure.rule=Host(`traefik.local.jalubru.com`)\"\n      - \"traefik.http.routers.traefik-secure.middlewares=traefik-auth\"\n      - \"traefik.http.routers.traefik-secure.tls=true\"\n      - \"traefik.http.routers.traefik-secure.tls.certresolver=cloudflare\"\n      - \"traefik.http.routers.traefik-secure.tls.domains[0].main=local.jalubru.com\"\n      - \"traefik.http.routers.traefik-secure.tls.domains[0].sans=*.local.jalubru.com\"\n      - \"traefik.http.routers.traefik-secure.service=api@internal\"\n\nsecrets:\n  cf_api_token:\n    file: /home/apps/traefik/data/cloudflare.env\n\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\nsudo nano /home/apps/traefik/cf_api_token.txt\n```\nfrom [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens)\n\n```bash\necho \"CLOUDFLARE_DNS_API_TOKEN=\" | sudo tee /home/apps/traefik/data/cloudflare.env > /dev/null\n```\n\n```bash\nsudo apt update\nsudo apt install apache2-utils\n```\n\n```bash\necho $(htpasswd -nB admin) | sed -e s/\\\\$/\\\\$\\\\$/g\n```\n\n```bash\nsudo nano /home/apps/traefik/.env\n```\n\n```bash\nTRAEFIK_DASHBOARD_CREDENTIALS=\n```\n\n```bash\nsudo docker compose -f /home/apps/traefik/docker-compose.yaml up -d\n```\n\nCreate local DNS record pointing to IP address of container and CNAME pointing to that record using [[Pi-Hole]]\n\nif everything is working, go back to traefik.yaml and comment out staging and uncomment production and delete acme.json contents\n\nFor [[Teleport]] setup, see Lempa video\n\n```bash\nsudo docker compose -f /home/apps/traefik/docker-compose.yaml up -d --force-recreate\n```\n\n#### config.yml\n\nThis file is Traefik's **static/file provider** — it's how services that aren't Docker containers on this host (or that don't carry their own `traefik.*` labels) still get a `*.local.jalubru.com` route. Docker-labeled containers (mealie, homebox, etc.) don't need an entry here; this is only for cross-host routing.\n\n```Bash\nsudo nano /home/apps/traefik/data/config.yml\n```\n\nCurrent live version — routes Proxmox, Pi-hole, Portainer, Home Assistant, Plex, and the whole Raspberry Pi arr-stack (radarr/sonarr/prowlarr/bazarr/qbittorrent/sabnzbd/tautulli) through to their real host:port:\n\n```yaml\nhttp:\n #region routers\n  routers:\n    proxmox:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`proxmox.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: proxmox\n    pihole:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`pihole.local.jalubru.com`)\"\n      middlewares:\n        #- redirectregex-pihole\n        - default-headers\n        #- addprefix-pihole\n        - https-redirectscheme\n      tls: {}\n      service: pihole\n    portainer:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`portainer.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: portainer\n    homeassistant:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`ha.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: homeassistant\n    plex:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`plex.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: plex\n    radarr:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`radarr.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: radarr\n    sonarr:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`sonarr.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: sonarr\n    prowlarr:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`prowlarr.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: prowlarr\n    bazarr:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`bazarr.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: bazarr\n    qbittorrent:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`qbittorrent.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: qbittorrent\n    sabnzbd:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`sabnzbd.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: sabnzbd\n    tautulli:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`tautulli.local.jalubru.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: tautulli\n#endregion\n#region services\n  services:\n    proxmox:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.192:8006\"\n        passHostHeader: true\n    pihole:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.190:80\"\n        passHostHeader: true\n    portainer:\n      loadBalancer:\n        servers:\n          - url: \"http://portainer:9000\"\n    homeassistant:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.193:8123\"\n        passHostHeader: true\n    plex:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.16:32400\"\n        passHostHeader: true\n    radarr:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:7878\"\n        passHostHeader: true\n    sonarr:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:8989\"\n        passHostHeader: true\n    prowlarr:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:9696\"\n        passHostHeader: true\n    bazarr:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:6767\"\n        passHostHeader: true\n    qbittorrent:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:5080\"\n        passHostHeader: true\n    sabnzbd:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:8070\"\n        passHostHeader: true\n    tautulli:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.195:8181\"\n        passHostHeader: true\n#endregion\n  middlewares:\n    addprefix-pihole:\n      addPrefix:\n        prefix: \"/admin\"\n    https-redirectscheme:\n      redirectScheme:\n        scheme: https\n        permanent: true\n    redirectregex-pihole:\n      redirectRegex:\n        regex: \"/admin/(.*)\"\n        replacement: /\n    default-headers:\n      headers:\n        frameDeny: true\n        browserXssFilter: true\n        contentTypeNosniff: true\n        forceSTSHeader: true\n        stsIncludeSubdomains: true\n        stsPreload: true\n        stsSeconds: 15552000\n        customFrameOptionsValue: SAMEORIGIN\n        customRequestHeaders:\n          X-Forwarded-Proto: https\n\n    default-whitelist:\n      ipAllowList:\n        sourceRange:\n        - \"10.0.0.0/8\"\n        - \"192.168.0.0/16\"\n        - \"172.16.0.0/12\"\n\n    secured:\n      chain:\n        middlewares:\n        - default-whitelist\n        - default-headers\n```\n\nAll possible:\n```yaml\nhttp:\n #region routers\n  routers:\n    proxmox:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`proxmox.local.example.com`)\" \n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: proxmox\n    pihole:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`pihole.local.example.com`)\"\n      middlewares:\n        - redirectregex-pihole\n        - default-headers\n        - addprefix-pihole\n        - https-redirectscheme\n      tls: {}\n      service: pihole\n    homebridge:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`homebridge.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: homebridge\n    homeassistant:\n      # For Homeassistant config, check: https://www.home-assistant.io/integrations/http/#reverse-proxies\n      # This relies on Homeassistant using http. No certs are needed in the Homeassistant config.\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`homeassistant.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: homeassistant\n    syncthing:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`syncthing.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: syncthing\n    truenas:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`truenas.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: truenas\n    plex:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`plex.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: plex\n    minio:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`minio.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: minio\n    rancher:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`rancher.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: rancher\n    idrac:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`idrac.local.example.com`)\"\n      middlewares:\n        - idrac\n        - https-redirectscheme\n      tls: {}\n      service: idrac\n    idrac-console:\n      entryPoints:\n        - \"idrac\" # REQUIRED for iDRAC virtual console: Create a new TCP entry point in traefik on port 5900\n      rule: \"Host(`idrac.local.example.com`)\"\n      middlewares:\n        - idrac\n        - https-redirectscheme\n      tls: {}\n      service: idrac-console\n    opnsense:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`opnsense.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: opnsense\n    pterodactyl:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`pterodactyl.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: pterodactyl\n    openmediavault:\n      entryPoints:\n        - \"https\"\n      rule: \"Host(`openmediavault.local.example.com`)\"\n      middlewares:\n        - default-headers\n        - https-redirectscheme\n      tls: {}\n      service: openmediavault\n\n#endregion\n#region services\n  services:\n    proxmox:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.100:8006\"\n        passHostHeader: true\n    pihole:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.101:80\"\n        passHostHeader: true\n    homebridge:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.102:10999\"\n        passHostHeader: true\n    homeassistant:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.102:10999\"\n        passHostHeader: true\n    syncthing:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.103:8384\"\n        passHostHeader: true\n    truenas:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.104\"\n        passHostHeader: true\n    plex:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.105:32400\"\n        passHostHeader: true\n    minio:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.106:9000/\"\n        passHostHeader: true\n    rancher:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.107\"\n        passHostHeader: true\n    idrac:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.108\"\n        passHostHeader: true\n    idrac-console:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.108:5900\"\n        passHostHeader: true\n    opnsense:\n      loadBalancer:\n        servers:\n          - url: \"https://192.168.0.109\"\n        passHostHeader: true\n    pterodactyl:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.110:80\"\n        passHostHeader: true\n    openmediavault:\n      loadBalancer:\n        servers:\n          - url: \"http://192.168.0.111:80\"\n        passHostHeader: true\n#endregion\n  middlewares:\n    addprefix-pihole:\n      addPrefix:\n        prefix: \"/admin\"\n    https-redirectscheme:\n      redirectScheme:\n        scheme: https\n        permanent: true\n    redirectregex-pihole:\n      redirectRegex:\n        regex: \"/admin/(.*)\"\n        replacement: /\n\n    default-headers:\n      headers:\n        frameDeny: true\n        browserXssFilter: true\n        contentTypeNosniff: true\n        forceSTSHeader: true\n        stsIncludeSubdomains: true\n        stsPreload: true\n        stsSeconds: 15552000\n        customFrameOptionsValue: SAMEORIGIN\n        customRequestHeaders:\n          X-Forwarded-Proto: https\n\n    idrac:\n      headers:\n        frameDeny: true\n        browserXssFilter: true\n        forceSTSHeader: true\n        stsIncludeSubdomains: true\n        stsSeconds: 15552000\n        customFrameOptionsValue: SAMEORIGIN\n        customRequestHeaders:\n          X-Forwarded-Proto: https\n\n    default-whitelist:\n      ipAllowList:\n        sourceRange:\n        - \"10.0.0.0/8\"\n        - \"192.168.0.0/16\"\n        - \"172.16.0.0/12\"\n\n    secured:\n      chain:\n        middlewares:\n        - default-whitelist\n        - default-headers\n```\n\n---\n>[[00 Homelab|home]]"
   },
-  "portainer-optipi": {
-    "serviceId": "portainer-optipi",
-    "sourceFile": "Portainer.md",
-    "title": "Portainer",
+  "twitchbot": {
+    "serviceId": "twitchbot",
+    "sourceFile": "Twitch Bot.md",
+    "title": "Twitch Channel Points Miner",
     "frontmatter": {
       "tags": [
-        "Homelab/Utilities"
+        "Homelab/Bots"
       ],
-      "ITname": "Portainer",
-      "ITcategory": "Docker",
+      "ITname": "Twitch Channel Points Miner",
+      "ITcategory": "Twitch",
       "ITmachine": [
-        "OptiPi",
-        "Raspberry Pi"
+        "OptiPi"
       ],
       "ITinstalltype": "docker",
       "ITstatus": "installed"
     },
-    "summary": "Portainer [Portainer Install Ubuntu tutorial - manage your docker containers](https://www.youtube.com/watch?v=ljDI5jykjE8) Installation",
+    "summary": "Twitch Bot [GitHub - rdavydov/Twitch-Channel-Points-Miner-v2: \\[NEW\\] A simple script that will watch a stream for you and earn the channel points. A successor of Tkd-Alex's original repo. · GitHub](https://github.com/rdavydov/Twitch-Channel-Points-Miner-v2#docker) [rdavidoff/twitch-channel-points-miner-v2 - Docker Image](https://hub.docker.com/r/rdavidoff/twitch-channel-points-miner-v2)",
     "links": [
       {
-        "label": "Portainer Install Ubuntu tutorial - manage your docker containers",
-        "url": "https://www.youtube.com/watch?v=ljDI5jykjE8"
+        "label": "rdavidoff/twitch-channel-points-miner-v2 - Docker Image",
+        "url": "https://hub.docker.com/r/rdavidoff/twitch-channel-points-miner-v2"
+      },
+      {
+        "label": "Installation Guide via Portainer",
+        "url": "https://github.com/rdavydov/Twitch-Channel-Points-Miner-v2/wiki/Deploy-Docker-container-in-Portainer"
+      },
+      {
+        "label": "github.com/sffxzzp/TTVDropBot-Build/pkgs/container/ttvdropbot-build",
+        "url": "https://github.com/sffxzzp/TTVDropBot-Build/pkgs/container/ttvdropbot-build"
+      },
+      {
+        "label": "github.com/Giingu/Enhanced-TTVDropBot",
+        "url": "https://github.com/Giingu/Enhanced-TTVDropBot"
       }
     ],
     "codeBlocks": [
       {
         "language": "bash",
-        "code": "docker volume create portainer_data"
+        "code": "sudo mkdir -p /home/bots/twitchbot/{analytics,cookies,logs}"
       },
       {
         "language": "bash",
-        "code": "docker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest"
+        "code": "sudo nano /home/bots/twitchbot/docker-compose.yaml"
       },
       {
         "language": "yaml",
-        "code": "services:\n  portainer:\n    image: portainer/portainer-ce:latest\n    container_name: portainer\n    networks:\n      - proxy\n    ports:\n      - \"8000:8000\"\n      - \"9000:9000\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - portainer_data:/data\n    restart: always\n\nnetworks:\n  proxy:\n    external: true\n\nvolumes:\n  portainer_data:"
-      },
-      {
-        "language": "http://192.168.0.195:9000/ ```",
-        "code": "---\n### Update\nTo update to the latest version of Portainer Server, use the following commands to stop then remove the old version. Your other applications/containers will not be removed."
-      },
-      {
-        "language": "text",
-        "code": ""
-      },
-      {
-        "language": "text",
-        "code": "Now that you have stopped and removed the old version of Portainer, you must ensure that you have the most up to date version of the image locally. You can do this with a `docker pull` command:"
-      },
-      {
-        "language": "text",
-        "code": "Finally, deploy the updated version of Portainer:"
-      },
-      {
-        "language": "text",
-        "code": "---\n\n**NOT IN USE**\n\nAfter installing [[Nginx Proxy Manager]] \n\nstop and remove the portainer"
-      },
-      {
-        "language": "text",
-        "code": ""
-      },
-      {
-        "language": "text",
-        "code": "find the proxy managers network"
-      },
-      {
-        "language": "text",
-        "code": "deploy the portainer again without opening port 9000 and with the proxy managers network"
-      }
-    ],
-    "markdown": "## Portainer\n\n---\n[Portainer Install Ubuntu tutorial - manage your docker containers](https://www.youtube.com/watch?v=ljDI5jykjE8)\n\n---\n\n### Installation\n\ncreate a new docker volume to store portainer data\n```bash\ndocker volume create portainer_data\n```\n\nlaunch portainer ADD NGINX NETWORK!\n```bash\ndocker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest\n```\n\n```yaml\nservices:\n  portainer:\n    image: portainer/portainer-ce:latest\n    container_name: portainer\n    networks:\n      - proxy\n    ports:\n      - \"8000:8000\"\n      - \"9000:9000\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - portainer_data:/data\n    restart: always\n\nnetworks:\n  proxy:\n    external: true\n\nvolumes:\n  portainer_data:\n```\n\nchange \"published ports\" IP\n1. go to \"Environment\"\n2. change \"Public IP\"\n\nconnect to portainer via port 9000\n```http://192.168.0.195:9000/ ```\n\n---\n### Update\nTo update to the latest version of Portainer Server, use the following commands to stop then remove the old version. Your other applications/containers will not be removed.\n\n```\ndocker stop portainer\n```\n\n```\ndocker rm portainer\n```\n\nNow that you have stopped and removed the old version of Portainer, you must ensure that you have the most up to date version of the image locally. You can do this with a `docker pull` command:\n\n```\ndocker pull portainer/portainer-ce:lts\n```\n\nFinally, deploy the updated version of Portainer:\n\n```\ndocker run -d -p 8000:8000 -p 9443:9443 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:lts\n```\n\n---\n\n**NOT IN USE**\n\nAfter installing [[Nginx Proxy Manager]] \n\nstop and remove the portainer\n```bash\ndocker stop portainer\n```\n\n```bash\ndocker rm portainer\n```\n\nfind the proxy managers network \n```bash\ndocker network ls\n```\n\ndeploy the portainer again without opening port 9000 and with the proxy managers network\n```bash\ndocker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce\n```\n\n---\n>[[00 Homelab|home]]"
-  },
-  "portainer-serverpi": {
-    "serviceId": "portainer-serverpi",
-    "sourceFile": "Portainer.md",
-    "title": "Portainer",
-    "frontmatter": {
-      "tags": [
-        "Homelab/Utilities"
-      ],
-      "ITname": "Portainer",
-      "ITcategory": "Docker",
-      "ITmachine": [
-        "OptiPi",
-        "Raspberry Pi"
-      ],
-      "ITinstalltype": "docker",
-      "ITstatus": "installed"
-    },
-    "summary": "Portainer [Portainer Install Ubuntu tutorial - manage your docker containers](https://www.youtube.com/watch?v=ljDI5jykjE8) Installation",
-    "links": [
-      {
-        "label": "Portainer Install Ubuntu tutorial - manage your docker containers",
-        "url": "https://www.youtube.com/watch?v=ljDI5jykjE8"
-      }
-    ],
-    "codeBlocks": [
-      {
-        "language": "bash",
-        "code": "docker volume create portainer_data"
+        "code": "services:\n  twitchbot:\n    image: rdavidoff/twitch-channel-points-miner-v2:latest\n    container_name: twitchbot\n    stdin_open: true\n    tty: true\n    environment:\n      - TERM=xterm-256color\n    volumes:\n      - /home/server/bots/twitchbot/analytics:/usr/src/app/analytics\n      - /home/bots/twitchbot/cookies:/usr/src/app/cookies\n      - /home/bots/twitchbot/logs:/usr/src/app/logs\n      - /home/bots/twitchbot/run.py:/usr/src/app/run.py:ro\n    ports:\n      - \"5000:5000\"\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.twitchbot.rule=Host(`twitchbot.local.jalubru.com`)\"\n      - \"traefik.http.routers.twitchbot.entrypoints=https\"\n      - \"traefik.http.routers.twitchbot.tls=true\"\n      - \"traefik.http.services.twitchbot.loadbalancer.server.port=5000\"\n    networks:\n      - proxy\n    restart: unless-stopped\n    pull_policy: always\n\nnetworks:\n  proxy:\n    external: true"
       },
       {
         "language": "bash",
-        "code": "docker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest"
+        "code": "sudo docker compose -f /home/bots/twitchbot/docker-compose.yaml up -d"
       },
       {
-        "language": "yaml",
-        "code": "services:\n  portainer:\n    image: portainer/portainer-ce:latest\n    container_name: portainer\n    networks:\n      - proxy\n    ports:\n      - \"8000:8000\"\n      - \"9000:9000\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - portainer_data:/data\n    restart: always\n\nnetworks:\n  proxy:\n    external: true\n\nvolumes:\n  portainer_data:"
-      },
-      {
-        "language": "http://192.168.0.195:9000/ ```",
-        "code": "---\n### Update\nTo update to the latest version of Portainer Server, use the following commands to stop then remove the old version. Your other applications/containers will not be removed."
-      },
-      {
-        "language": "text",
-        "code": ""
-      },
-      {
-        "language": "text",
-        "code": "Now that you have stopped and removed the old version of Portainer, you must ensure that you have the most up to date version of the image locally. You can do this with a `docker pull` command:"
-      },
-      {
-        "language": "text",
-        "code": "Finally, deploy the updated version of Portainer:"
-      },
-      {
-        "language": "text",
-        "code": "---\n\n**NOT IN USE**\n\nAfter installing [[Nginx Proxy Manager]] \n\nstop and remove the portainer"
-      },
-      {
-        "language": "text",
-        "code": ""
-      },
-      {
-        "language": "text",
-        "code": "find the proxy managers network"
-      },
-      {
-        "language": "text",
-        "code": "deploy the portainer again without opening port 9000 and with the proxy managers network"
+        "language": "bash",
+        "code": "sudo nano /home/bots/twitchbot/run.py"
       }
     ],
-    "markdown": "## Portainer\n\n---\n[Portainer Install Ubuntu tutorial - manage your docker containers](https://www.youtube.com/watch?v=ljDI5jykjE8)\n\n---\n\n### Installation\n\ncreate a new docker volume to store portainer data\n```bash\ndocker volume create portainer_data\n```\n\nlaunch portainer ADD NGINX NETWORK!\n```bash\ndocker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest\n```\n\n```yaml\nservices:\n  portainer:\n    image: portainer/portainer-ce:latest\n    container_name: portainer\n    networks:\n      - proxy\n    ports:\n      - \"8000:8000\"\n      - \"9000:9000\"\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - portainer_data:/data\n    restart: always\n\nnetworks:\n  proxy:\n    external: true\n\nvolumes:\n  portainer_data:\n```\n\nchange \"published ports\" IP\n1. go to \"Environment\"\n2. change \"Public IP\"\n\nconnect to portainer via port 9000\n```http://192.168.0.195:9000/ ```\n\n---\n### Update\nTo update to the latest version of Portainer Server, use the following commands to stop then remove the old version. Your other applications/containers will not be removed.\n\n```\ndocker stop portainer\n```\n\n```\ndocker rm portainer\n```\n\nNow that you have stopped and removed the old version of Portainer, you must ensure that you have the most up to date version of the image locally. You can do this with a `docker pull` command:\n\n```\ndocker pull portainer/portainer-ce:lts\n```\n\nFinally, deploy the updated version of Portainer:\n\n```\ndocker run -d -p 8000:8000 -p 9443:9443 --name=portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:lts\n```\n\n---\n\n**NOT IN USE**\n\nAfter installing [[Nginx Proxy Manager]] \n\nstop and remove the portainer\n```bash\ndocker stop portainer\n```\n\n```bash\ndocker rm portainer\n```\n\nfind the proxy managers network \n```bash\ndocker network ls\n```\n\ndeploy the portainer again without opening port 9000 and with the proxy managers network\n```bash\ndocker run -d -p 8000:8000 -p 9000:9000 --name=portainer --network proxy --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce\n```\n\n---\n>[[00 Homelab|home]]"
+    "markdown": "## Twitch Bot\n\n---\n[GitHub - rdavydov/Twitch-Channel-Points-Miner-v2: \\[NEW\\] A simple script that will watch a stream for you and earn the channel points. A successor of Tkd-Alex's original repo. · GitHub](https://github.com/rdavydov/Twitch-Channel-Points-Miner-v2#docker)\n[rdavidoff/twitch-channel-points-miner-v2 - Docker Image](https://hub.docker.com/r/rdavidoff/twitch-channel-points-miner-v2)\n\nhttps://github.com/sffxzzp/TTVDropBot-Build/pkgs/container/ttvdropbot-build\n(arm64 compatible fork from https://github.com/Giingu/Enhanced-TTVDropBot)\n\n---\n### Docker Compose\n\n```bash\nsudo mkdir -p /home/bots/twitchbot/{analytics,cookies,logs}\n```\n\n```bash\nsudo nano /home/bots/twitchbot/docker-compose.yaml\n```\n\n```yaml\nservices:\n  twitchbot:\n    image: rdavidoff/twitch-channel-points-miner-v2:latest\n    container_name: twitchbot\n    stdin_open: true\n    tty: true\n    environment:\n      - TERM=xterm-256color\n    volumes:\n      - /home/server/bots/twitchbot/analytics:/usr/src/app/analytics\n      - /home/bots/twitchbot/cookies:/usr/src/app/cookies\n      - /home/bots/twitchbot/logs:/usr/src/app/logs\n      - /home/bots/twitchbot/run.py:/usr/src/app/run.py:ro\n    ports:\n      - \"5000:5000\"\n    labels:\n      - \"traefik.enable=true\"\n      - \"traefik.http.routers.twitchbot.rule=Host(`twitchbot.local.jalubru.com`)\"\n      - \"traefik.http.routers.twitchbot.entrypoints=https\"\n      - \"traefik.http.routers.twitchbot.tls=true\"\n      - \"traefik.http.services.twitchbot.loadbalancer.server.port=5000\"\n    networks:\n      - proxy\n    restart: unless-stopped\n    pull_policy: always\n\nnetworks:\n  proxy:\n    external: true\n```\n\n```bash\nsudo docker compose -f /home/bots/twitchbot/docker-compose.yaml up -d\n```\n\n```bash\nsudo nano /home/bots/twitchbot/run.py\n```\n\n---\n\n### run.py file\n\n[[TwitchBot-Docker-run.py#]]\n\n- - -\n### Portainer installation\n[Installation Guide via Portainer](https://github.com/rdavydov/Twitch-Channel-Points-Miner-v2/wiki/Deploy-Docker-container-in-Portainer)\n\n#### Volume Mapping\n\n| container              | host (Bind)                           |\n| ---------------------- | ------------------------------------- |\n| /usr/src/app/analytics | /home/server/bots/twitchbot/analytics |\n| /usr/src/app/cookies   | /home/server/bots/twitchbot/cookies   |\n| /usr/src/app/logs      | /home/server/bots/twitchbot/logs      |\n| /usr/src/app/run.py    | /home/server/bots/twitchbot/run.py    |\n\n---\n[[00 Homelab|home]]"
   }
 };

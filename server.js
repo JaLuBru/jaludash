@@ -10,8 +10,8 @@ const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "0.0.0.0";
 const dataDir = path.join(root, "data");
 const roadmapFile = path.join(dataDir, "roadmap-items.json");
-const customServicesFile = path.join(dataDir, "custom-services.json");
-const customGroupsFile = path.join(dataDir, "custom-groups.json");
+const inventoryFile = path.join(dataDir, "inventory.json");
+const seedFile = path.join(root, "src", "inventory-seed.json");
 const historyFile = path.join(dataDir, "history.json");
 
 const types = {
@@ -37,32 +37,6 @@ function readRoadmapItems() {
 function saveRoadmapItems(items) {
   fs.mkdirSync(dataDir, { recursive: true });
   fs.writeFileSync(roadmapFile, JSON.stringify(items, null, 2) + "\n", "utf8");
-}
-
-function readCustomServices() {
-  try {
-    return JSON.parse(fs.readFileSync(customServicesFile, "utf8"));
-  } catch (error) {
-    return [];
-  }
-}
-
-function saveCustomServices(items) {
-  fs.mkdirSync(dataDir, { recursive: true });
-  fs.writeFileSync(customServicesFile, JSON.stringify(items, null, 2) + "\n", "utf8");
-}
-
-function readCustomGroups() {
-  try {
-    return JSON.parse(fs.readFileSync(customGroupsFile, "utf8"));
-  } catch (error) {
-    return [];
-  }
-}
-
-function saveCustomGroups(items) {
-  fs.mkdirSync(dataDir, { recursive: true });
-  fs.writeFileSync(customGroupsFile, JSON.stringify(items, null, 2) + "\n", "utf8");
 }
 
 function readHistory() {
@@ -119,25 +93,141 @@ function cleanUrl(value) {
   }
 }
 
-function groupFromInput(input, existing) {
-  const name = cleanText(input.name, 120);
-  if (!name) return { error: "Card name is required." };
-  const host = cleanText(input.host, 80) || "docker-lxc";
-  const category = cleanText(input.category, 40) || "apps";
-  return {
-    item: Object.assign({}, existing || {}, {
-      id: existing && existing.id ? existing.id : "custom-group-" + slugify(name) + "-" + Date.now().toString(36),
-      name,
-      host,
-      category,
-      importance: new Set(["critical", "high", "medium", "low"]).has(input.importance) ? input.importance : "low",
-      purpose: cleanText(input.purpose, 260),
-      notes: cleanText(input.notes, 500) ? cleanText(input.notes, 500).split(/\n+/).map((item) => item.trim()).filter(Boolean) : [],
-      source: "dashboard",
-      createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    })
+// --- Inventory: a single editable data file (data/inventory.json), seeded once from
+// src/inventory-seed.json. New apps added to the seed later show up automatically
+// (merged in on every read); anything the user deletes goes on the `removedSeedIds`
+// tombstone list so a future seed merge never brings it back. Anything the user edits
+// simply lives in data/inventory.json from then on and is never touched by the seed again.
+
+function readSeed() {
+  return JSON.parse(fs.readFileSync(seedFile, "utf8"));
+}
+
+function emptyInventory() {
+  return { seedVersion: 0, removedSeedIds: [], hosts: [], computeUnits: [], serviceGroups: [], concerns: [], plannedChanges: [] };
+}
+
+function cloneSeedGroup(group) {
+  return Object.assign({}, group, { services: (group.services || []).map((service) => Object.assign({}, service)) });
+}
+
+function mergeSeed(live, seed) {
+  let changed = false;
+  const removed = new Set(live.removedSeedIds || []);
+  const inventory = Object.assign(emptyInventory(), live, { removedSeedIds: Array.from(removed) });
+
+  ["hosts", "computeUnits", "concerns", "plannedChanges"].forEach((key) => {
+    const existingIds = new Set((inventory[key] || []).map((item) => item.id));
+    (seed[key] || []).forEach((item) => {
+      if (existingIds.has(item.id) || removed.has(item.id)) return;
+      inventory[key] = (inventory[key] || []).concat(item);
+      existingIds.add(item.id);
+      changed = true;
+    });
+  });
+
+  const liveGroupsById = new Map((inventory.serviceGroups || []).map((group) => [group.id, group]));
+  (seed.serviceGroups || []).forEach((seedGroup) => {
+    if (removed.has(seedGroup.id)) return;
+    const liveGroup = liveGroupsById.get(seedGroup.id);
+    if (!liveGroup) {
+      inventory.serviceGroups = (inventory.serviceGroups || []).concat(cloneSeedGroup(seedGroup));
+      liveGroupsById.set(seedGroup.id, inventory.serviceGroups[inventory.serviceGroups.length - 1]);
+      changed = true;
+      return;
+    }
+    const existingServiceIds = new Set((liveGroup.services || []).map((service) => service.id));
+    (seedGroup.services || []).forEach((service) => {
+      if (existingServiceIds.has(service.id) || removed.has(service.id)) return;
+      liveGroup.services = (liveGroup.services || []).concat(Object.assign({}, service));
+      existingServiceIds.add(service.id);
+      changed = true;
+    });
+  });
+
+  if (seed.seedVersion !== inventory.seedVersion) {
+    inventory.seedVersion = seed.seedVersion;
+    changed = true;
+  }
+
+  return { inventory, changed };
+}
+
+function writeInventory(inventory) {
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(inventoryFile, JSON.stringify(inventory, null, 2) + "\n", "utf8");
+}
+
+function readInventory() {
+  const seed = readSeed();
+  let live = null;
+  try {
+    live = JSON.parse(fs.readFileSync(inventoryFile, "utf8"));
+  } catch (error) {
+    live = null;
+  }
+  if (!live) {
+    const fresh = Object.assign(emptyInventory(), {
+      seedVersion: seed.seedVersion,
+      hosts: seed.hosts,
+      computeUnits: seed.computeUnits,
+      serviceGroups: (seed.serviceGroups || []).map(cloneSeedGroup),
+      concerns: seed.concerns,
+      plannedChanges: seed.plannedChanges
+    });
+    writeInventory(fresh);
+    return fresh;
+  }
+  const { inventory, changed } = mergeSeed(live, seed);
+  if (changed) writeInventory(inventory);
+  return inventory;
+}
+
+function parentHostId(inventory, id) {
+  if ((inventory.hosts || []).some((item) => item.id === id)) return id;
+  const unit = (inventory.computeUnits || []).find((item) => item.id === id);
+  return unit ? unit.host : id;
+}
+
+function findServiceLocation(inventory, serviceId) {
+  for (const group of inventory.serviceGroups || []) {
+    const index = (group.services || []).findIndex((service) => service.id === serviceId);
+    if (index !== -1) return { group, index };
+  }
+  return null;
+}
+
+function matchingGroup(inventory, targetHost, category) {
+  const groups = inventory.serviceGroups || [];
+  const targetParent = parentHostId(inventory, targetHost);
+  return groups.find((group) => group.category === category && (group.host === targetHost || parentHostId(inventory, group.host) === targetParent)) ||
+    groups.find((group) => group.category === category) ||
+    groups.find((group) => group.host === targetHost || parentHostId(inventory, group.host) === targetParent) ||
+    null;
+}
+
+function ensureGroupFor(inventory, targetHost, category) {
+  const existing = matchingGroup(inventory, targetHost, category);
+  if (existing) return existing;
+  const group = {
+    id: "dashboard-" + slugify(targetHost) + "-" + slugify(category),
+    name: "Dashboard Added",
+    host: targetHost,
+    category,
+    importance: "low",
+    purpose: "Services added from jaludash.",
+    notes: [],
+    source: "dashboard",
+    services: []
   };
+  inventory.serviceGroups = (inventory.serviceGroups || []).concat(group);
+  return group;
+}
+
+function tombstone(inventory, id) {
+  const removed = new Set(inventory.removedSeedIds || []);
+  removed.add(id);
+  inventory.removedSeedIds = Array.from(removed);
 }
 
 function serviceFromInput(input, existing) {
@@ -162,66 +252,39 @@ function serviceFromInput(input, existing) {
       host,
       category,
       source: "dashboard",
-      deleted: Boolean(input.deleted),
-      discovery: input.discovery || (existing && existing.discovery) || null,
-      createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      discovery: input.discovery || (existing && existing.discovery) || null
     })
   };
 }
 
-function readInventoryText() {
-  const inventoryPath = path.join(root, "src", "inventory.js");
-  return fs.readFileSync(inventoryPath, "utf8");
+function groupFromInput(input, existing) {
+  const name = cleanText(input.name, 120);
+  if (!name) return { error: "Card name is required." };
+  const host = cleanText(input.host, 80) || "docker-lxc";
+  const category = cleanText(input.category, 40) || "apps";
+  return {
+    item: Object.assign({}, existing || {}, {
+      id: existing && existing.id ? existing.id : "custom-group-" + slugify(name) + "-" + Date.now().toString(36),
+      name,
+      host,
+      category,
+      importance: new Set(["critical", "high", "medium", "low"]).has(input.importance) ? input.importance : "low",
+      purpose: cleanText(input.purpose, 260),
+      notes: cleanText(input.notes, 500) ? cleanText(input.notes, 500).split(/\n+/).map((item) => item.trim()).filter(Boolean) : [],
+      source: "dashboard"
+    })
+  };
 }
 
-function parseListNumbers(value) {
-  if (!value) return null;
-  return value.split(",").map((item) => Number(item.trim())).filter((item) => Number.isFinite(item));
-}
-
-function readInventoryServices() {
-  const text = readInventoryText();
-  const matches = Array.from(text.matchAll(/\{ id: "([^"]+)", name: "([^"]+)"([^\n]*?)\}/g));
-  return matches.map((match) => {
-    const body = match[3] || "";
-    const url = body.match(/url: "(https?:\/\/[^"]+)"/);
-    if (!url) return null;
-    const checkUrl = body.match(/checkUrl: "(https?:\/\/[^"]+)"/);
-    const okStatuses = body.match(/okStatuses: \[([^\]]+)\]/);
-    const disabled = /checkDisabled: true/.test(body);
-    return {
-      id: match[1],
-      name: match[2],
-      url: url[1],
-      checkUrl: checkUrl ? checkUrl[1] : url[1],
-      okStatuses: parseListNumbers(okStatuses && okStatuses[1]),
-      disabled
-    };
-  }).filter(Boolean);
-}
-
-function readInventoryHosts() {
-  const text = readInventoryText();
-  const blocks = Array.from(text.matchAll(/\{\n      id: "([^"]+)",[\s\S]*?name: "([^"]+)",[\s\S]*?shortName: "([^"]+)"[\s\S]*?addresses: \[([^\]]+)\],[\s\S]*?health: \{ managementUrl: "([^"]+)", metricsUrl: "([^"]+)" \}/g));
-  return blocks.map((match) => ({
-    id: match[1],
-    name: match[2],
-    shortName: match[3],
-    addresses: match[4].split(',').map((item) => item.replace(/["\s]/g, '')).filter(Boolean),
-    managementUrl: match[5],
-    metricsUrl: match[6]
-  }));
+function allServicesFlat(inventory) {
+  return (inventory.serviceGroups || []).flatMap((group) => (group.services || []).map((service) => Object.assign({ groupId: group.id, groupHost: group.host, category: service.category || group.category }, service)));
 }
 
 function serviceChecks() {
-  const customServices = readCustomServices();
-  const overrides = new Map(customServices.filter((service) => service.overrideOf).map((service) => [service.overrideOf, service]));
-  const inventoryChecks = readInventoryServices().map((service) => Object.assign({}, service, overrides.get(service.id) || {}, { id: service.id })).filter((service) => !service.deleted);
-  const customChecks = customServices.filter((service) => !service.overrideOf && !service.deleted).map((service) => ({ ...service, disabled: !service.url }));
+  const inventory = readInventory();
   const seen = new Set();
-  return inventoryChecks.concat(customChecks).filter((service) => {
-    if (service.disabled) return false;
+  return allServicesFlat(inventory).filter((service) => {
+    if (!service.url) return false;
     if (seen.has(service.id)) return false;
     seen.add(service.id);
     return true;
@@ -232,15 +295,10 @@ function normalizeName(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
-function readInventoryServiceNames() {
-  const text = readInventoryText();
-  const matches = Array.from(text.matchAll(/\{ id: "([^"]+)", name: "([^"]+)"([^\n]*?)\}/g));
+function knownServiceNames() {
+  const inventory = readInventory();
   const names = new Set();
-  matches.forEach((match) => {
-    names.add(normalizeName(match[1]));
-    names.add(normalizeName(match[2]));
-  });
-  readCustomServices().forEach((service) => {
+  allServicesFlat(inventory).forEach((service) => {
     names.add(normalizeName(service.id));
     names.add(normalizeName(service.name));
   });
@@ -484,12 +542,12 @@ async function speedPayload() {
 }
 
 async function checkHostHealth(host) {
-  const management = await checkHttpService({ id: host.id, name: host.name, url: host.managementUrl, checkUrl: host.managementUrl, okStatuses: [200, 401, 403] });
+  const management = await checkHttpService({ id: host.id, name: host.name, url: host.health.managementUrl, checkUrl: host.health.managementUrl, okStatuses: [200, 401, 403] });
   let metrics = null;
   let metricsState = "unknown";
   let metricsError = "node_exporter not reachable or not installed";
   try {
-    const response = await fetchText(host.metricsUrl);
+    const response = await fetchText(host.health.metricsUrl);
     if (response.statusCode < 500 && response.body.includes("node_")) {
       metrics = ensureExpectedStorage(host, parseNodeMetrics(response.body));
       metricsState = "online";
@@ -502,12 +560,12 @@ async function checkHostHealth(host) {
     metricsState = "offline";
     metricsError = error.message;
   }
-  return { ...host, management, metricsUrl: host.metricsUrl, metricsState, metricsError, metrics, checkedAt: new Date().toISOString() };
+  return { id: host.id, name: host.name, shortName: host.shortName, addresses: host.addresses, management, metricsUrl: host.health.metricsUrl, metricsState, metricsError, metrics, checkedAt: new Date().toISOString() };
 }
 
 async function hostHealthPayload() {
-  const hosts = readInventoryHosts();
-  const results = await Promise.all(hosts.map(checkHostHealth));
+  const inventory = readInventory();
+  const results = await Promise.all((inventory.hosts || []).map(checkHostHealth));
   const checkedAt = new Date().toISOString();
   appendHistory("hosts", {
     checkedAt,
@@ -654,7 +712,7 @@ async function proxmoxPayload() {
 }
 
 async function discoveryPayload() {
-  const knownNames = readInventoryServiceNames();
+  const knownNames = knownServiceNames();
   try {
     const response = await dockerSocketRequest("/containers/json?all=1");
     if (response.statusCode >= 400) throw new Error("Docker returned HTTP " + response.statusCode);
@@ -681,8 +739,8 @@ async function discoveryPayload() {
 }
 
 function handleApi(req, res, urlPath) {
-  if (urlPath === "/api/groups" && req.method === "GET") {
-    sendJson(res, 200, { groups: readCustomGroups() });
+  if (urlPath === "/api/inventory" && req.method === "GET") {
+    sendJson(res, 200, readInventory());
     return true;
   }
 
@@ -693,9 +751,10 @@ function handleApi(req, res, urlPath) {
       try { input = JSON.parse(body || "{}"); } catch (parseError) { return sendJson(res, 400, { error: "Invalid JSON." }); }
       const result = groupFromInput(input);
       if (result.error) return sendJson(res, 400, { error: result.error });
-      const items = readCustomGroups();
-      items.unshift(result.item);
-      saveCustomGroups(items);
+      const inventory = readInventory();
+      result.item.services = [];
+      inventory.serviceGroups = (inventory.serviceGroups || []).concat(result.item);
+      writeInventory(inventory);
       sendJson(res, 201, { group: result.item });
     });
     return true;
@@ -707,14 +766,15 @@ function handleApi(req, res, urlPath) {
       if (error) return sendJson(res, 400, { error: "Could not read request body." });
       let input;
       try { input = JSON.parse(body || "{}"); } catch (parseError) { return sendJson(res, 400, { error: "Invalid JSON." }); }
-      const items = readCustomGroups();
-      const index = items.findIndex((item) => item.id === groupId || item.overrideOf === groupId);
-      const existing = index === -1 ? { id: groupId, overrideOf: groupId, source: "dashboard", createdAt: new Date().toISOString() } : items[index];
+      const inventory = readInventory();
+      const existing = (inventory.serviceGroups || []).find((group) => group.id === groupId);
+      if (!existing) return sendJson(res, 404, { error: "Card not found." });
       const result = groupFromInput(input, existing);
       if (result.error) return sendJson(res, 400, { error: result.error });
-      if (input.deleted) result.item.deleted = true;
-      if (index === -1) items.unshift(result.item); else items[index] = result.item;
-      saveCustomGroups(items);
+      result.item.id = groupId;
+      result.item.services = existing.services || [];
+      inventory.serviceGroups = inventory.serviceGroups.map((group) => group.id === groupId ? result.item : group);
+      writeInventory(inventory);
       sendJson(res, 200, { group: result.item });
     });
     return true;
@@ -722,42 +782,28 @@ function handleApi(req, res, urlPath) {
 
   if (urlPath.startsWith("/api/groups/") && req.method === "DELETE") {
     const groupId = decodeURIComponent(urlPath.slice("/api/groups/".length));
-    const items = readCustomGroups();
-    const index = items.findIndex((item) => item.id === groupId || item.overrideOf === groupId);
-    if (index === -1) items.unshift({ id: groupId, overrideOf: groupId, source: "dashboard", deleted: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-    else items[index] = Object.assign({}, items[index], { deleted: true, updatedAt: new Date().toISOString() });
-    saveCustomGroups(items);
+    const inventory = readInventory();
+    const existing = (inventory.serviceGroups || []).find((group) => group.id === groupId);
+    if (existing) (existing.services || []).forEach((service) => tombstone(inventory, service.id));
+    tombstone(inventory, groupId);
+    inventory.serviceGroups = (inventory.serviceGroups || []).filter((group) => group.id !== groupId);
+    writeInventory(inventory);
     sendJson(res, 200, { ok: true });
-    return true;
-  }
-
-  if (urlPath === "/api/services" && req.method === "GET") {
-    sendJson(res, 200, { services: readCustomServices() });
     return true;
   }
 
   if (urlPath === "/api/services" && req.method === "POST") {
     readBody(req, (error, body) => {
-      if (error) {
-        sendJson(res, 400, { error: "Could not read request body." });
-        return;
-      }
+      if (error) return sendJson(res, 400, { error: "Could not read request body." });
       let input;
-      try {
-        input = JSON.parse(body || "{}");
-      } catch (parseError) {
-        sendJson(res, 400, { error: "Invalid JSON." });
-        return;
-      }
+      try { input = JSON.parse(body || "{}"); } catch (parseError) { return sendJson(res, 400, { error: "Invalid JSON." }); }
       const result = serviceFromInput(input);
-      if (result.error) {
-        sendJson(res, 400, { error: result.error });
-        return;
-      }
-      const items = readCustomServices();
-      items.unshift(result.item);
-      saveCustomServices(items);
-      sendJson(res, 201, { service: result.item });
+      if (result.error) return sendJson(res, 400, { error: result.error });
+      const inventory = readInventory();
+      const group = ensureGroupFor(inventory, result.item.host, result.item.category);
+      group.services = (group.services || []).concat(result.item);
+      writeInventory(inventory);
+      sendJson(res, 201, { service: Object.assign({ groupId: group.id }, result.item) });
     });
     return true;
   }
@@ -765,28 +811,28 @@ function handleApi(req, res, urlPath) {
   if (urlPath.startsWith("/api/services/") && req.method === "PUT") {
     const serviceId = decodeURIComponent(urlPath.slice("/api/services/".length));
     readBody(req, (error, body) => {
-      if (error) {
-        sendJson(res, 400, { error: "Could not read request body." });
-        return;
-      }
+      if (error) return sendJson(res, 400, { error: "Could not read request body." });
       let input;
-      try {
-        input = JSON.parse(body || "{}");
-      } catch (parseError) {
-        sendJson(res, 400, { error: "Invalid JSON." });
-        return;
-      }
-      const items = readCustomServices();
-      const index = items.findIndex((item) => item.id === serviceId || item.overrideOf === serviceId);
-      const existing = index === -1 ? { id: serviceId, overrideOf: serviceId, source: "dashboard", createdAt: new Date().toISOString() } : items[index];
+      try { input = JSON.parse(body || "{}"); } catch (parseError) { return sendJson(res, 400, { error: "Invalid JSON." }); }
+      const inventory = readInventory();
+      const location = findServiceLocation(inventory, serviceId);
+      const existing = location ? location.group.services[location.index] : { id: serviceId };
       const result = serviceFromInput(input, existing);
-      if (result.error) {
-        sendJson(res, 400, { error: result.error });
-        return;
+      if (result.error) return sendJson(res, 400, { error: result.error });
+      result.item.id = serviceId;
+      if (location) {
+        if (location.group.host === result.item.host && location.group.category === result.item.category) {
+          location.group.services[location.index] = result.item;
+        } else {
+          location.group.services.splice(location.index, 1);
+          const target = ensureGroupFor(inventory, result.item.host, result.item.category);
+          target.services = (target.services || []).concat(result.item);
+        }
+      } else {
+        const target = ensureGroupFor(inventory, result.item.host, result.item.category);
+        target.services = (target.services || []).concat(result.item);
       }
-      if (index === -1) items.unshift(result.item);
-      else items[index] = result.item;
-      saveCustomServices(items);
+      writeInventory(inventory);
       sendJson(res, 200, { service: result.item });
     });
     return true;
@@ -794,14 +840,11 @@ function handleApi(req, res, urlPath) {
 
   if (urlPath.startsWith("/api/services/") && req.method === "DELETE") {
     const serviceId = decodeURIComponent(urlPath.slice("/api/services/".length));
-    const items = readCustomServices();
-    const nextItems = items.filter((item) => item.id !== serviceId && item.overrideOf !== serviceId);
-    if (nextItems.length === items.length) {
-      items.unshift({ id: serviceId, overrideOf: serviceId, source: "dashboard", deleted: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-      saveCustomServices(items);
-    } else {
-      saveCustomServices(nextItems);
-    }
+    const inventory = readInventory();
+    const location = findServiceLocation(inventory, serviceId);
+    if (location) location.group.services.splice(location.index, 1);
+    tombstone(inventory, serviceId);
+    writeInventory(inventory);
     sendJson(res, 200, { ok: true });
     return true;
   }

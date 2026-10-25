@@ -70,15 +70,23 @@ This lets jaludash list containers on the Docker LXC and compare them with the i
 
 ## Current Scope
 
-This deployment is still read-only, but it now includes live reachability checks and host-health overviews when the configured endpoints are reachable.
+jaludash is a mostly read-only dashboard. It never restarts or controls services; its only writes are to its own data in the `jaludash-data` volume (inventory edits, roadmap items, history). Current features:
 
-Next intended buckets:
+- Service inventory grouped by stack, editable from the app (add, edit and delete groups and services), seeded from `src/inventory-seed.json`
+- Per-service wiki/runbook pages
+- Live HTTP/HTTPS reachability checks
+- Host health (memory, root disk, uptime) from node_exporter, and a Storage overview
+- Docker container discovery (local read-only socket) and Proxmox LXC/VM discovery (API token, see `PROXMOX_SETUP.md`)
+- History and Trends charts, plus internet speed tests, manual or scheduled (see `HISTORY_SETUP.md`)
+- Roadmap list
+- Light and dark mode
 
-1. Improve the service directory page.
-2. Tune service status checks.
-3. Expand host and storage overview.
-4. Add a safer Obsidian-vault refresh workflow.
+Possible next steps:
+
+1. Tune service status checks (for example TCP checks, which are not implemented yet).
+2. Expand host and storage overview.
+3. Add a safer Obsidian-vault refresh workflow.
 
 ## Roadmap Data
 
-Roadmap items added in the app are stored in the Docker volume `jaludash-data` at `/app/data`. This keeps them through normal `docker compose -f /home/apps/jaludash/docker-compose.yml up -d --build` rebuilds.
+Roadmap items, the editable inventory (`inventory.json`) and `history.json` are stored in the Docker volume `jaludash-data` at `/app/data`. This keeps them through normal `docker compose -f /home/apps/jaludash/docker-compose.yml up -d --build` rebuilds.

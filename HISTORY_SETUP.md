@@ -10,7 +10,7 @@ The dashboard records:
 
 - service status samples whenever live data refreshes
 - host memory/root-disk/storage samples whenever host health refreshes
-- internet download speed when you press `Run speed test` on the Trends page
+- internet download speed when you press `Run speed test` on the Trends page, or on a schedule when `SPEED_TEST_INTERVAL_MINUTES` is set
 
 Optional `.env` values:
 

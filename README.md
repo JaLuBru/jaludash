@@ -2,14 +2,24 @@
 
 A personal dashboard for keeping track of what is running in your homelab, where it lives, how to reach it, and what needs attention.
 
-The current version focuses on:
+The current version includes:
 
-- Service inventory grouped by stack
+- Service inventory grouped by stack, editable from the app
 - Service wiki/runbook pages generated from local documentation
 - Reachability checks for configured service URLs
-- Host health cards for the Optiplex/Proxmox host and Raspberry Pi
+- Host health cards for the Optiplex/Proxmox host and Raspberry Pi, and a Storage overview
+- Docker container discovery and Proxmox LXC/VM discovery (Proxmox needs an optional read-only API token)
+- History and Trends charts, with manual or scheduled internet speed tests
 - Roadmap items that can be added, checked off, and deleted from the app
 - Light and dark mode
+
+## Further Setup Docs
+
+- `DEPLOYMENT.md`: deployment, Traefik, updates
+- `HOST_HEALTH_SETUP.md`: node_exporter
+- `PROXMOX_SETUP.md`: Proxmox API token
+- `HISTORY_SETUP.md`: history and speed tests
+- `SERVICE_STATUS_PLAN.md`: status check plan and implementation status
 
 ## Run On The Server
 
